@@ -229,6 +229,8 @@ header.top .pair { display: inline-flex; align-items: center; gap: 6px; white-sp
 .linkbtn { border: 0; background: none; padding: 0; font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
 .linkbtn.danger { color: var(--bad); }
 .tvseg button { padding: 5px 4px; font-size: 12.5px; }
+.rotseg { margin-left: 6px; }
+.rotseg button { padding: 5px 7px; font-size: 12.5px; }
 </style>
 <script type="text/plain" id="head-tpl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rozmístění lůžek Oáza klidu</title><meta name="robots" content="noindex, nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&amp;family=IBM+Plex+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"></script>
 <script>
@@ -320,7 +322,18 @@ function inPoly(x, y, pts) {
   return c;
 }
 function roomAt(fk, x, y) { return FL[fk].rooms.find(r => inPoly(x, y, r.pts)) || null; }
-function half(b) { return (b.rot % 180 === 0) ? [b.w / 2, b.l / 2] : [b.l / 2, b.w / 2]; }
+function axisRot(b) { return b.rot % 90 === 0; }
+function half(b) {
+  if (axisRot(b)) return (b.rot % 180 === 0) ? [b.w / 2, b.l / 2] : [b.l / 2, b.w / 2];
+  const t = b.rot * Math.PI / 180, c = Math.abs(Math.cos(t)), si = Math.abs(Math.sin(t));
+  return [c * b.w / 2 + si * b.l / 2, si * b.w / 2 + c * b.l / 2];
+}
+function rcorners(b, ins) {
+  // skutečné rohy otočeného obdélníku ve světových souřadnicích (y nahoru)
+  const t = -b.rot * Math.PI / 180, c = Math.cos(t), si = Math.sin(t), hw = b.w / 2 - (ins || 0), hl = b.l / 2 - (ins || 0), out = [];
+  for (const [u, w] of [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl], [0, -hl], [hw, 0], [0, hl], [-hw, 0]]) out.push([b.x + u * c - w * si, b.y + u * si + w * c]);
+  return out;
+}
 function bedBox(b) { const [hw, hh] = half(b); return [b.x - hw, b.y - hh, b.x + hw, b.y + hh]; }
 function bedRoom(fk, b) {
   let r = roomAt(fk, b.x, b.y);
@@ -329,6 +342,7 @@ function bedRoom(fk, b) {
 }
 function bedFits(fk, b) {
   const r = bedRoom(fk, b); if (!r) return { room: null, ok: false };
+  if (!axisRot(b)) return { room: r, ok: rcorners(b, 0.01).every(([x, y]) => inPoly(x, y, r.pts)) };
   const [hw, hh] = half(b), ins = 0.02;
   for (const sx of [-1, 0, 1]) for (const sy of [-1, 0, 1]) if (!inPoly(b.x + sx * (hw - ins), b.y + sy * (hh - ins), r.pts)) return { room: r, ok: false };
   return { room: r, ok: true };
@@ -911,6 +925,12 @@ function tvInner(b, opts) {
   g += `<line x1="${-w / 2}" y1="${l / 2}" x2="${w / 2}" y2="${l / 2}" stroke="#4fb3e8" stroke-width="3" vector-effect="non-scaling-stroke"/>`;
   const a = Math.min(0.18, w * 0.25), y0 = l / 2 + px(4);
   g += `<path d="M${-a / 2},${y0} L${a / 2},${y0} L0,${y0 + a * 0.7}Z" fill="#4fb3e8" opacity=".75"/>`;
+  if (sel && !sync.readOnly) {
+    const hy = -l / 2 - px(26);
+    g += `<line x1="0" y1="${-l / 2}" x2="0" y2="${hy}" stroke="${ACC}" stroke-width="1.5" vector-effect="non-scaling-stroke" style="pointer-events:none"/>`;
+    g += `<circle data-roth="1" cx="0" cy="${hy}" r="${px(7)}" fill="#fff" stroke="${ACC}" stroke-width="2" vector-effect="non-scaling-stroke" style="cursor:grab"><title>Táhni pro otočení (Shift = po 15°)</title></circle>`;
+    g += `<path d="M${-px(3.5)},${hy - px(1)} a${px(3.5)},${px(3.5)} 0 1 1 ${px(1.2)},${px(3.3)}" fill="none" stroke="${ACC}" stroke-width="1.4" vector-effect="non-scaling-stroke" style="pointer-events:none"/>`;
+  }
   return g;
 }
 function objInner(b, opts) { return isTv(b) ? tvInner(b, opts) : isCurtain(b) ? curtainInner(b, opts) : b.kind === 'prekazka' ? obstInner(b, opts) : b.kind ? itemInner(b, opts) : bedInner(b, opts); }
@@ -1277,9 +1297,11 @@ function tvCard(sc, f) {
   return `<div class="card compact selcard"><h2>Vybraná televize<span>${wcm} cm</span></h2>
     <div class="field"><label>Velikost</label><div class="seg full tvseg">${TV_SIZES.map(([d, w]) => `<button data-tvw="${w}" class="${wcm === w ? 'on' : ''}" title="šířka ${w} cm"${ro}>${d}″</button>`).join('')}</div></div>
     <div class="row field"><label for="tvW">Šířka</label><input id="tvW" type="number" min="30" max="250" step="1" value="${wcm}" style="width:76px"${ro}><span class="hint">cm</span></div>
+    <div class="row field"><label for="tvRot">Natočení</label><input id="tvRot" type="number" min="-1" max="360" step="1" value="${Math.round(b.rot)}" style="width:64px"${ro}><span class="hint">°</span>
+      <span class="seg rotseg">${[-15, -1, 1, 15].map(d => `<button data-rotd="${d}" title="${d > 0 ? 'po směru' : 'proti směru'} hodinových ručiček"${ro}>${d > 0 ? '+' : '−'}${Math.abs(d)}°</button>`).join('')}</span></div>
     <div class="field"><label for="obLbl">Popis</label><input id="obLbl" type="text" maxlength="40" value="${esc(b.label)}" placeholder="např. na rameni, na skříňce"${ro}></div>
-    <div class="row"><button id="bRot"${ro}>Otočit</button><button id="bDup"${ro}>Duplikovat</button><button id="bDel" class="danger"${ro}>Smazat</button></div>
-    <p class="hint">Modrá hrana je obrazovka, šipka ukazuje, kam se dívá. Televize se do kolizí nepočítá, může stát i nad skříňkou.</p>
+    <div class="row"><button id="bRot"${ro}>Otočit o 90°</button><button id="bDup"${ro}>Duplikovat</button><button id="bDel" class="danger"${ro}>Smazat</button></div>
+    <p class="hint">Otáčí se kolem středu. Táhni za kulaté madlo za televizí (Shift = po 15°), nebo klávesy [ a ] po 1°. Modrá hrana je obrazovka, šipka ukazuje, kam se dívá. Do kolizí se nepočítá.</p>
   </div>`;
 }
 function itemCard(sc, f) {
@@ -1409,6 +1431,9 @@ function bind() {
   on('#bMove', 'change', e => moveBedTo(e.target.value));
   on('#zvL', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(15, Math.max(0.1, (+e.target.value || 100) / 100)); }));
   on('#tvW', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(2.5, Math.max(0.3, (+e.target.value || 100) / 100)); }));
+  const setRot = v => change(() => { const b = findBed(ui.sel.id).b; b.rot = ((Math.round(v) % 360) + 360) % 360; });
+  on('#tvRot', 'change', e => setRot(+e.target.value || 0));
+  document.querySelectorAll('[data-rotd]').forEach(btn => btn.addEventListener('click', () => setRot(findBed(ui.sel.id).b.rot + +btn.dataset.rotd)));
   document.querySelectorAll('[data-tvw]').forEach(btn => btn.addEventListener('click', () => change(() => { findBed(ui.sel.id).b.w = +btn.dataset.tvw / 100; })));
   on('#obLbl', 'change', e => change(() => { findBed(ui.sel.id).b.label = e.target.value.trim().slice(0, 40); }));
   on('#obW', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(10, Math.max(0.05, (+e.target.value || 50) / 100)); }));
@@ -1483,11 +1508,16 @@ function drawMeasure() { const g = document.getElementById('measure'); if (g) g.
 function drawGaps(fk, b) { const g = document.getElementById('gaps'); if (g) g.innerHTML = ui.page === 'room' ? bedGaps(fk, b, ROOMS[ui.room]) : ''; }
 function bindPlan() {
   const svg = $('#plan'); if (!svg) return;
-  let drag = null, pan = null;
+  let drag = null, pan = null, spin = null;
   svg.addEventListener('wheel', e => { e.preventDefault(); const p = svgPt(svg, e); zoom(Math.pow(1.0015, e.deltaY), p.sx, p.sy); }, { passive: false });
   svg.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
     const g = e.target.closest('[data-bed]'), p = svgPt(svg, e);
+    if (g && e.target.closest('[data-roth]') && ui.mode === 'select' && canEdit()) {
+      const f = findBed(g.dataset.bed); if (!f) return;
+      spin = { el: g, b: f.b, fk: f.fk, before: snapshot(), r0: f.b.rot };
+      svg.setPointerCapture(e.pointerId); ui.dragging = true; e.stopPropagation(); return;
+    }
     if (g && ui.page === 'room' && ui.mode === 'select' && !sync.readOnly && sync.mode !== 'connecting') {
       const f = findBed(g.dataset.bed); if (!f) return;
       drag = { el: g, b: f.b, fk: f.fk, ox: p.x - f.b.x, oy: p.y - f.b.y, before: snapshot(), moved: false, x0: e.clientX, y0: e.clientY, bx: f.b.x, by: f.b.y };
@@ -1499,6 +1529,19 @@ function bindPlan() {
     }
   });
   svg.addEventListener('pointermove', e => {
+    if (spin) {
+      const p = svgPt(svg, e), vx = p.x - spin.b.x, vy = p.y - spin.b.y;
+      if (Math.hypot(vx, vy) < 0.02) return;
+      // madlo je za zády (lokálně nahoře), úhel ve stupních po směru hodinových ručiček
+      let a = Math.atan2(vx, vy) * 180 / Math.PI;
+      a = e.shiftKey ? Math.round(a / 15) * 15 : Math.round(a);
+      if (!e.shiftKey && !e.altKey) { const m = Math.round(a / 45) * 45; if (Math.abs(a - m) <= 2) a = m; }
+      a = ((a % 360) + 360) % 360; spin.b.rot = a;
+      spin.el.setAttribute('transform', `translate(${spin.b.x},${-spin.b.y}) rotate(${a})`);
+      const ri = document.getElementById('tvRot'); if (ri) ri.value = a;
+      const gg = document.getElementById('guides'); if (gg) gg.innerHTML = `<text x="${p.x}" y="${-p.y - px(14)}" font-size="${px(12)}" text-anchor="middle" style="fill:${ACC};stroke:#fff;stroke-width:${px(3)};paint-order:stroke;font-weight:600">${a}°</text>`;
+      return;
+    }
     if (drag) {
       if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 3) return;
       if (!drag.moved) { const ol = document.getElementById('olabels'); if (ol && drag.b.kind === 'prekazka') ol.style.display = 'none'; }
@@ -1526,6 +1569,12 @@ function bindPlan() {
     }
   });
   const end = e => {
+    if (spin) {
+      const s = spin; spin = null; ui.dragging = false; drawGuides([]);
+      if (s.b.rot !== s.r0) { undo.push(s.before); if (undo.length > 60) undo.shift(); redo.length = 0; persist(); }
+      if (sync.pendingApply) { sync.pendingApply = false; applyRemote(); }
+      render(); return;
+    }
     if (drag) {
       const d = drag; drag = null; ui.dragging = false;
       if (d.moved && (d.b.x !== d.bx || d.b.y !== d.by)) { undo.push(d.before); if (undo.length > 60) undo.shift(); redo.length = 0; persist(); }
@@ -1570,6 +1619,7 @@ document.addEventListener('keydown', e => {
   if (ui.page === 'room' && !ui.sel && (e.key === 'PageDown' || e.key === 'PageUp')) { const l = roomNavList(), i = l.indexOf(ui.room), n = l[i + (e.key === 'PageDown' ? 1 : -1)]; if (n) { e.preventDefault(); openRoom(n); } return; }
   if (!ui.sel || ui.sel.type !== 'bed') return;
   if (e.key === 'r' || e.key === 'R') { e.preventDefault(); rotateSel(); }
+  else if ((e.code === 'BracketLeft' || e.code === 'BracketRight') && isTv(findBed(ui.sel.id) && findBed(ui.sel.id).b)) { e.preventDefault(); const d = (e.code === 'BracketRight' ? 1 : -1) * (e.shiftKey ? 15 : 1); change(() => { const b = findBed(ui.sel.id).b; b.rot = (((Math.round(b.rot) + d) % 360) + 360) % 360; }); }
   else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSel(); }
   else if (e.key === 'd' || e.key === 'D') { e.preventDefault(); dupSel(); }
   else if (e.key.startsWith('Arrow')) {

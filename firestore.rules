@@ -35,7 +35,7 @@ service cloud.firestore {
         && request.resource.data.kind in ['skrin', 'prekazka', 'zaves', 'tv']
         && num(request.resource.data.x) && num(request.resource.data.y)
         && (request.resource.data.rot in [0, 90, 180, 270]
-            || (request.resource.data.kind == 'zaves' && num(request.resource.data.rot) && request.resource.data.rot >= 0 && request.resource.data.rot < 360))
+            || (request.resource.data.kind in ['zaves', 'tv'] && num(request.resource.data.rot) && request.resource.data.rot >= 0 && request.resource.data.rot < 360))
         && num(request.resource.data.w) && num(request.resource.data.l)
         && str(request.resource.data.label, 40);
     }
