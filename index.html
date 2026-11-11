@@ -838,10 +838,22 @@ function obstInner(b, opts) {
 }
 function objInner(b, opts) { return b.kind === 'prekazka' ? obstInner(b, opts) : b.kind ? itemInner(b, opts) : bedInner(b, opts); }
 function obstSvg(b, opts) {
-  let g = `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${obstInner(b, opts)}</g>`;
-  const [hw, hh] = half(b), fs = Math.min(px(10.5), hh * 0.9), txt = b.label || `${Math.round(b.w * 100)}×${Math.round(b.l * 100)}`;
-  if (hw * 2 / ui.k > 24 && hh * 2 / ui.k > 12) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + fs * 0.35}" font-size="${fs}" text-anchor="middle" style="fill:#fff;pointer-events:none">${esc(fitText(txt, hw * 1.9, fs))}</text>`;
-  return g;
+  return `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${obstInner(b, opts)}</g>`;
+}
+function obstLabel(b) {
+  const g = '';
+  const [hw, hh] = half(b), W = hw * 2 / ui.k, H = hh * 2 / ui.k, fpx = 10.5, fs = px(fpx);
+  const txt = b.label || `${Math.round(b.w * 100)}×${Math.round(b.l * 100)}`, tw = txt.length * fpx * 0.56;
+  const inside = (cx, cy, rot, maxW) => `<text class="bed-lbl" x="${cx}" y="${cy + fs * 0.35}" font-size="${fs}" text-anchor="middle"${rot ? ` transform="rotate(-90 ${cx} ${cy})"` : ''} style="fill:#fff;pointer-events:none">${esc(fitText(txt, maxW, fs))}</text>`;
+  if (H >= fpx + 3 && W >= Math.min(tw, 34)) return g + inside(b.x, -b.y, false, hw * 1.9);
+  if (W >= fpx + 3 && H >= Math.min(tw, 34)) return g + inside(b.x, -b.y, true, hh * 1.9);
+  // malá překážka: popisek vedle ní, na stranu do místnosti
+  const r = bedRoom(curFloor(), b), gap = fs * 0.8;
+  const cands = W >= H
+    ? [[b.x, b.y - hh - gap - fs * 0.35], [b.x, b.y + hh + gap]]
+    : [[b.x + hw + gap + tw * ui.k / 2, b.y], [b.x - hw - gap - tw * ui.k / 2, b.y]];
+  const pos = cands.find(([x, y]) => !r || inPoly(x, y, r.pts)) || cands[0];
+  return g + `<text class="bed-lbl" x="${pos[0]}" y="${-pos[1] + fs * 0.35}" font-size="${fs}" text-anchor="middle" style="fill:#2a3134;paint-order:stroke;stroke:#fff;stroke-width:${px(3)};pointer-events:none">${esc(txt)}</text>`;
 }
 function itemSvg(b, opts) {
   if (b.kind === 'prekazka') return obstSvg(b, opts);
@@ -971,11 +983,13 @@ function renderPlan(opts) {
     s += `<g clip-path="url(#rc)" style="pointer-events:none">${showMinor ? `<rect x="${ox}" y="${oy}" width="${Math.max(...xs) - ox}" height="${Math.max(...ys) - Math.min(...ys)}" fill="url(#g5)"/>` : ''}<rect x="${ox}" y="${oy}" width="${Math.max(...xs) - ox}" height="${Math.max(...ys) - Math.min(...ys)}" fill="url(#g50)"/><rect x="${ox}" y="${oy}" width="${Math.max(...xs) - ox}" height="${Math.max(...ys) - Math.min(...ys)}" fill="url(#g100)"/></g>`;
     s += `<g style="pointer-events:none">${edgeDims(R)}</g>`;
     s += '<g id="beds">' + itemsOf(sc, fk).concat(sc.beds[fk] || []).filter(inRoom).map(b => bedSvg(b, { bad: badIds.has(b.id), sel: isSel(b) })).join('') + '</g>';
+    s += '<g id="olabels">' + itemsOf(sc, fk).filter(b => b.kind === 'prekazka' && inRoom(b)).map(obstLabel).join('') + '</g>';
     const selB = ui.sel && ui.sel.type === 'bed' ? findBed(ui.sel.id) : null;
     s += `<g id="gaps" class="gaps">${selB && selB.fk === fk && inRoom(selB.b) ? bedGaps(fk, selB.b, R) : ''}</g>`;
   } else {
     s += staticLayer(fk) + notesLayer(fk);
     s += '<g id="beds">' + itemsOf(sc, fk).concat(sc.beds[fk] || []).map(b => bedSvg(b, { bad: badIds.has(b.id) })).join('') + '</g>';
+    s += '<g>' + itemsOf(sc, fk).filter(b => b.kind === 'prekazka').map(obstLabel).join('') + '</g>';
     s += f.rooms.map(r => roomLabels(sc, a, ca, r, fk)).join('');
   }
   s += `<g id="guides" fill="none" stroke="${ACC}" stroke-width="1.5" stroke-dasharray="6 4"></g>`;
@@ -1378,6 +1392,7 @@ function bindPlan() {
   svg.addEventListener('pointermove', e => {
     if (drag) {
       if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 3) return;
+      if (!drag.moved) { const ol = document.getElementById('olabels'); if (ol && drag.b.kind === 'prekazka') ol.style.display = 'none'; }
       drag.moved = true; ui.dragging = true; drag.el.classList.add('drag');
       const p = svgPt(svg, e), rx = p.x - drag.ox, ry = p.y - drag.oy;
       const s = e.altKey ? { x: +(Math.round(rx / 0.01) * 0.01).toFixed(3), y: +(Math.round(ry / 0.01) * 0.01).toFixed(3), guides: [] } : snapBed(drag.fk, drag.b, rx, ry);
