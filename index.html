@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rozmístění lůžek Oáza klidu</title><meta name="robots" content="noindex, nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&amp;family=IBM+Plex+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"><style id="app-css">/* Plánovač lůžek: tenká horní lišta, vlevo výkres podlaží, vpravo souhrn a vlastnosti výběru, pod tím tabulka pokojů. */
+:root {
+  --bg: #f4f5f4;
+  --surface: #ffffff;
+  --ink: #1d2427;
+  --muted: #5d686d;
+  --line: #d8dddd;
+  --accent: #1f5f73;
+  --accent-soft: #e2eef1;
+  --ok: #2f7d4f;
+  --warn: #a8660b;
+  --bad: #b3261e;
+  --paper: #ffffff;
+  --paper-ink: #222;
+  --wall: #cfd3d4;
+  --f-body: "IBM Plex Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15191b; --surface: #1d2326; --ink: #e4e8e9; --muted: #9aa5a9; --line: #333c40;
+    --accent: #7fc3d6; --accent-soft: #23353b; --ok: #6cc08e; --warn: #e3a646; --bad: #ff8a80;
+    --paper: #f7f7f5; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15191b; --surface: #1d2326; --ink: #e4e8e9; --muted: #9aa5a9; --line: #333c40;
+  --accent: #7fc3d6; --accent-soft: #23353b; --ok: #6cc08e; --warn: #e3a646; --bad: #ff8a80;
+  --paper: #f7f7f5; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.4; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 5px 10px; }
+button:hover { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); font-weight: 600; }
+button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+button.danger { color: var(--bad); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type=text], input[type=number], select, textarea { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 5px 8px; }
+textarea { width: 100%; resize: vertical; min-height: 54px; }
+.tab-num { font-variant-numeric: tabular-nums; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+header.top h1 { font-size: 16px; margin: 0; font-weight: 600; text-wrap: balance; }
+header.top h1 small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.scen { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.scen label { color: var(--muted); font-size: 12px; }
+.scen select { max-width: 260px; }
+.spacer { flex: 1; }
+.savebox { display: flex; align-items: center; gap: 8px; }
+.status { font-size: 12px; color: var(--muted); }
+.status.dirty { color: var(--warn); font-weight: 600; }
+.status.err { color: var(--bad); font-weight: 600; }
+
+.banner { margin: 10px 16px 0; padding: 8px 12px; border-radius: 6px; background: var(--accent-soft); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+main.grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 12px 16px 16px; align-items: start; }
+@media (max-width: 980px) { main.grid { grid-template-columns: 1fr; } }
+
+.plan { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.group { display: flex; gap: 4px; align-items: center; }
+.floor-tab b { font-variant-numeric: tabular-nums; margin-left: 4px; font-weight: 600; }
+.hint { color: var(--muted); font-size: 12px; }
+.svgwrap { position: relative; height: clamp(420px, 66vh, 880px); background: var(--paper); touch-action: none; }
+.svgwrap svg { width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; }
+.svgwrap.adding svg { cursor: crosshair; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 8px 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 10px; border: 1.5px solid; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+
+aside { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 64px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.card h2 { font-size: 13px; text-transform: none; margin: 0 0 8px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card h2 span { font-weight: 400; color: var(--muted); font-size: 12px; }
+.big { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.big small { font-size: 14px; color: var(--muted); font-weight: 400; }
+.limits { display: grid; gap: 6px; margin-top: 10px; }
+.lim { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; }
+.lim .bar { grid-column: 1 / -1; height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.lim .bar > div { height: 100%; background: var(--ok); }
+.lim.full .bar > div { background: var(--accent); }
+.lim.over .bar > div { background: var(--bad); }
+.lim.over .v { color: var(--bad); font-weight: 600; }
+.sexrow { display: flex; gap: 12px; font-size: 12px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 260px; overflow: auto; }
+.checks li { font-size: 12.5px; padding: 5px 8px; border-left: 3px solid var(--line); background: var(--bg); border-radius: 0 4px 4px 0; cursor: pointer; }
+.checks li.bad { border-color: var(--bad); }
+.checks li.warn { border-color: var(--warn); }
+.checks li.info { border-color: var(--accent); cursor: default; }
+.checks li.okmsg { border-color: var(--ok); cursor: default; }
+.field { display: grid; gap: 3px; margin-bottom: 8px; }
+.field > label { font-size: 12px; color: var(--muted); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 13px; margin-bottom: 8px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+.settings summary { cursor: pointer; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+.settings .sgrid { display: grid; grid-template-columns: 1fr 70px; gap: 4px 8px; margin-top: 8px; align-items: center; font-size: 12.5px; }
+.settings input { width: 70px; }
+
+section.tablecard { margin: 0 16px 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+section.tablecard header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+section.tablecard h2 { margin: 0; font-size: 14px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; background: var(--bg); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--accent-soft); }
+tbody tr.sel { background: var(--accent-soft); }
+tfoot td { font-weight: 600; }
+.d-plus { color: var(--ok); font-weight: 600; }
+.d-minus { color: var(--bad); font-weight: 600; }
+.pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.pill.warn { border-color: var(--warn); color: var(--warn); }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+.modal .box { background: var(--surface); border-radius: 10px; padding: 16px; width: min(640px, 100%); display: grid; gap: 10px; }
+.modal textarea { min-height: 220px; font-family: var(--f-mono); font-size: 12px; }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13px; z-index: 30; }
+
+/* výkres */
+.r-fill { stroke: none; }
+.r-hit { cursor: pointer; }
+.r-id { font-family: var(--f-mono); fill: #7a8487; pointer-events: none; paint-order: stroke; stroke: rgba(255,255,255,.85); stroke-width: var(--halo, 0); }
+.r-name { font-family: var(--f-body); fill: #2a3134; font-weight: 600; pointer-events: none; paint-order: stroke; stroke: rgba(255,255,255,.85); stroke-width: var(--halo, 0); }
+.r-chip { font-family: var(--f-body); fill: #2a3134; pointer-events: none; paint-order: stroke; stroke: rgba(255,255,255,.85); stroke-width: var(--halo, 0); }
+.r-delta { font-family: var(--f-body); font-weight: 700; pointer-events: none; paint-order: stroke; stroke: #fff; stroke-width: var(--halo, 0); }
+.e-dim { font-family: var(--f-mono); fill: #1f5f73; font-weight: 400; }
+.gaps { stroke: #e8710a; stroke-width: var(--hair, 0); }
+.gaps text { fill: #b4530a; stroke: #fff; stroke-width: var(--halo, 0); paint-order: stroke; font-family: var(--f-mono); font-weight: 600; pointer-events: none; }
+.is-ov .r-fill { cursor: pointer; }
+.is-ov .r-fill:hover { fill-opacity: .55; }
+.is-ov .bed { cursor: pointer; }
+.detail .r-fill { cursor: pointer; }
+.ovl { position: absolute; left: 12px; bottom: 10px; display: grid; gap: 4px; pointer-events: none; }
+.ov-title { position: absolute; left: 0; bottom: 30px; white-space: nowrap; font-weight: 700; font-size: 15px; color: #1d2427; background: rgba(255,255,255,.85); padding: 2px 6px; border-radius: 4px; }
+.ov-scale { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #333; background: rgba(255,255,255,.85); padding: 3px 6px; border-radius: 4px; }
+.ov-scale .bar { height: 6px; border: 1.5px solid #333; border-top: 0; }
+.minimap svg { width: 100%; height: auto; display: block; }
+.minimap path[data-goto] { cursor: pointer; }
+.minimap path[data-goto]:hover { fill: #f6c08f; }
+.toolhint { padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.status.ok { color: var(--ok); }
+.bed { cursor: grab; }
+.bed.drag { cursor: grabbing; }
+.bed-lbl { font-family: var(--f-body); font-weight: 600; fill: #222; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) { .toast { transition: opacity .2s; } }
+
+.card.compact { padding: 10px 12px; }
+.card.compact h2 { margin-bottom: 6px; }
+.selcard { border-color: #e8710a; box-shadow: inset 3px 0 0 #e8710a; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.two .field { margin-bottom: 6px; }
+.two input, .two select { width: 100%; min-width: 0; }
+.chk { font-size: 13px; display: flex; gap: 6px; align-items: center; padding-bottom: 12px; }
+.seg.full { display: flex; margin-bottom: 8px; }
+.seg.full button { flex: 1; }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); margin: 2px 0 6px; font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); font-weight: 600; }
+details.note summary, details.more summary { cursor: pointer; font-size: 12.5px; color: var(--muted); margin: 4px 0; }
+details.note textarea { margin-top: 4px; }
+details.more { margin-top: 8px; }
+details.more .row { margin-top: 6px; }
+.card.compact .hint { margin: 6px 0; }
+button.small { font-size: 12.5px; padding: 3px 8px; }
+.minisum { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.minisum b { color: var(--ink); }
+.minisum .bad, .minisum .bad b { color: var(--bad); }
+.card.compact .checks { margin-top: 8px; }
+.two input[type=checkbox] { width: auto; }
+.minimap svg { max-height: 190px; }
+
+#stat { display: inline-block; width: 112px; white-space: nowrap; overflow: hidden; }
+#stat .status { display: inline-flex; align-items: center; gap: 6px; }
+#stat .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
+#stat .status.ok i { background: var(--ok); }
+#stat .status.busy i { background: var(--warn); }
+#stat .status.err i { background: var(--bad); }
+#stat .status.dirty i { background: var(--warn); }
+header.top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; }
+header.top .spacer { display: none; }
+header.top .scen { flex-wrap: wrap; min-width: 0; }
+header.top .scen select { min-width: 0; max-width: 220px; }
+header.top .savebox { justify-self: end; flex-wrap: nowrap; }
+@media (max-width: 760px) {
+  header.top { grid-template-columns: minmax(0, 1fr) auto; }
+  header.top .scen { grid-column: 1 / -1; grid-row: 2; }
+  header.top h1 small { display: none; }
+}
+header.top .pair { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+@media (max-width: 1250px) { header.top h1 small { display: none; } }
+</style>
+<script type="text/plain" id="head-tpl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rozmístění lůžek Oáza klidu</title><meta name="robots" content="noindex, nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&amp;family=IBM+Plex+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"></script>
+<script>
+// Napojení plánovače na Firebase Firestore místo databáze claude.ai.
+// Stránka používá stejné rozhraní (doc / collection / onSnapshot / set / delete).
+(function () {
+  let resolveDb; const dbReady = new Promise(r => { resolveDb = r; });
+  window.__fbResolve = resolveDb;
+  const downloads = {
+    save: async ({ filename, data }) => {
+      const blob = data instanceof Blob ? data : new Blob([data], { type: 'image/svg+xml' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+  };
+  window.claude = {
+    use: async name => {
+      if (name === 'db') return Promise.race([dbReady, new Promise(r => setTimeout(() => r(null), 15000))]);
+      if (name === 'user') return { can: async () => true };
+      if (name === 'downloads') return downloads;
+      return null;
+    }
+  };
+})();
+</script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+import { getFirestore, doc, collection, setDoc, deleteDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+const app = initializeApp({"apiKey": "AIzaSyDowhduH6_0zkbfVn_VDKVS3Ztz6XJqjto", "authDomain": "oaza-luzka.firebaseapp.com", "projectId": "oaza-luzka", "storageBucket": "oaza-luzka.firebasestorage.app", "messagingSenderId": "780576871450", "appId": "1:780576871450:web:d68c472bb326e29889ada3"});
+const fs = getFirestore(app);
+const wrapDoc = d => ({ id: d.id, exists: d.exists(), data: () => d.data(), metadata: d.metadata });
+const err = cb => e => cb && cb({ code: (e && e.code === 'permission-denied') ? 'invalid_argument' : 'unavailable', message: String(e && e.message) });
+const docRef = path => ({
+  id: path.split('/').pop(), path,
+  set: data => setDoc(doc(fs, path), data),
+  delete: () => deleteDoc(doc(fs, path)),
+  onSnapshot: (next, e) => onSnapshot(doc(fs, path), d => next(wrapDoc(d)), err(e))
+});
+const db = {
+  doc: docRef,
+  collection: path => ({
+    path,
+    doc: id => docRef(path + '/' + id),
+    onSnapshot: (next, e) => onSnapshot(collection(fs, path), s => next({ docs: s.docs.map(wrapDoc), size: s.size, empty: s.empty, metadata: s.metadata }), err(e))
+  })
+};
+window.__fbResolve(db);
+</script>
+
+</head>
+<body>
+<div id="app"></div>
+<script type="application/json" id="geo">{"floors":[{"key":"1NP","title":"1. nadzemní podlaží","walls":[[-37.095,-14.125,-36.602,-8.267],[-37.095,-7.126,-36.602,9.273],[-34.054,-14.125,-33.88,-11.654],[-34.054,-10.724,-33.88,-8.393],[-31.784,2.754,-31.664,3.812],[-31.784,4.742,-31.664,9.273],[-31.287,-6.92,-31.131,-3.101],[-30.88,-14.125,-30.73,-11.654],[-30.88,-10.724,-30.73,-8.393],[-28.23,-14.125,-28.08,-13.717],[-28.23,-13.12,-28.08,-8.393],[-28.362,-3.406,-28.26,-2.301],[-28.362,-1.401,-28.26,2.907],[-26.891,2.754,-26.767,3.812],[-26.891,4.742,-26.767,9.273],[-26.636,-14.125,-26.486,-12.193],[-26.636,-11.088,-26.486,-9.619],[-26.636,-8.917,-26.486,-8.393],[-26.514,-6.92,-26.338,-5.436],[-26.514,-3.946,-26.338,-3.101],[-25.496,-10.479,-25.346,-8.393],[-24.379,-14.125,-24.12,-5.169],[-24.612,-3.861,-24.118,3.367],[-24.612,4.156,-24.118,9.273],[-18.496,-3.861,-18.346,-2.03],[-18.463,-9.954,-18.315,-5.209],[-16.09,-13.931,-15.789,-9.317],[-16.531,-8.306,-16.224,-0.021],[-13.987,-8.165,-13.837,-3.411],[-12.255,-13.931,-11.955,-9.426],[-12.255,-8.165,-11.955,-5.347],[-12.255,-4.031,-11.955,-2.235],[-12.255,-1.357,-11.955,-0.021],[-10.162,-17.083,-9.601,-13.066],[-10.162,-11.936,-9.601,-9.797],[-10.124,-8.297,-9.674,-2.03],[-10.124,-1.153,-9.674,-0.021],[-7.293,-17.083,-7.124,-15.916],[-7.248,-15.116,-7.084,-9.842],[-7.115,-8.25,-6.815,0.204],[-4.974,-17.083,-4.834,-11.566],[-2.674,-17.083,-2.532,-11.57],[-2.724,-9.996,-2.574,-9.809],[-2.724,-9.055,-2.574,-7.501],[-0.358,-17.083,0.23,0.204],[-10.162,-17.084,0.23,-16.631],[-37.095,-14.125,-24.12,-13.684],[-24.379,-13.931,-21.696,-13.483],[-20.135,-13.931,-11.847,-13.483],[-10.461,-13.931,-9.601,-13.483],[-28.23,-12.443,-26.486,-12.293],[-7.248,-11.714,-6.934,-11.566],[-6.134,-11.714,-4.694,-11.566],[-3.894,-11.714,-3.753,-11.566],[-3.894,-11.71,-1.414,-11.57],[-0.614,-11.71,0.23,-11.57],[-28.23,-11.461,-26.486,-11.311],[-28.23,-10.479,-25.346,-10.329],[-24.379,-9.954,-17.62,-9.652],[-16.18,-9.954,-15.789,-9.652],[-10.162,-9.996,-5.124,-9.842],[-4.224,-9.996,0.23,-9.842],[-16.09,-9.728,-15.33,-9.426],[-14.33,-9.728,-11.955,-9.426],[-37.095,-8.695,-35.74,-8.393],[-34.862,-8.695,-30.032,-8.393],[-28.979,-8.695,-26.192,-8.393],[-24.613,-8.695,-24.12,-8.393],[-16.531,-8.165,-11.955,-8.014],[-10.124,-8.25,-8.853,-8.099],[-8.151,-8.25,-6.815,-8.099],[-7.115,-7.651,-3.772,-7.5],[-2.895,-7.651,0.23,-7.5],[-37.095,-6.92,-35.587,-6.743],[-34.787,-6.92,-26.338,-6.743],[-24.612,-3.861,-17.974,-3.411],[-16.413,-3.861,-9.674,-3.411],[-37.095,-3.406,-35.792,-3.1],[-34.807,-3.406,-26.137,-3.1],[-24.593,-3.406,-24.118,-3.1],[-18.496,-2.18,-16.224,-2.03],[-10.124,-0.246,0.23,0.204],[-16.531,-0.471,-11.854,-0.021],[-10.415,-0.471,-9.674,-0.021],[-37.095,2.754,-34.502,2.907],[-33.602,2.754,-26.069,2.907],[-24.973,2.644,-24.118,2.794],[-37.095,8.809,-24.118,9.273],[-11.955,-8.165,-11.39,-8.065],[-10.69,-8.165,-10.124,-8.065],[-28.131,-3.686,-26.501,-3.406],[-3.794,-10.396,-3.154,-9.996]],"rails":[[-28.155,-14.125,-28.155,-16.681],[-28.155,-16.681,-24.12,-16.681],[-24.12,-15.331,-24.12,-16.681],[-27.085,-15.331,-22.633,-15.331],[-19.197,-13.931,-19.197,-15.331],[-11.896,-13.931,-11.896,-16.781],[0.23,-7.576,2.33,-7.576],[2.33,-7.576,2.33,-9.176]],"windows":[[-8.991,-0.246,-7.885,0.204,1],[-6.596,-0.246,-5.508,0.204,1],[-5.188,-0.246,-4.539,0.204,1],[-4.309,-0.246,-3.186,0.204,1],[-2.113,-0.246,-0.955,0.204,1],[-19.769,-3.861,-19.05,-3.411,1],[-15.013,-13.932,-14.066,-13.482,1],[-33.768,-14.129,-32.715,-13.679,1],[-32.262,-14.129,-31.227,-13.679,1],[-29.267,-14.129,-28.267,-13.679,1],[-27.831,-14.129,-26.761,-13.679,1],[-26.326,-14.129,-25.22,-13.679,1],[-37.074,6.484,-36.624,8.221,0],[-37.074,3.488,-36.624,5.19,0],[-24.59,6.492,-24.14,8.089,0],[-24.59,3.943,-24.14,5.171,0],[-24.59,0.559,-24.14,2.19,0],[-24.59,-2.391,-24.14,-0.759,0],[-0.289,-2.08,0.161,-0.922,0],[-0.289,-4.363,0.161,-3.223,0],[-0.289,-6.646,0.161,-5.506,0],[-0.289,-8.363,0.161,-7.784,0],[-37.074,-9.84,-36.624,-9.068,0],[-22.55,-13.931,-21.696,-13.483,1],[-20.135,-13.931,-19.28,-13.483,1],[-37.095,-6.744,-36.602,-5.604,0],[-37.074,1.054,-36.624,1.954,0],[-0.289,-13.84,0.161,-12.53,0],[-0.289,-16.13,0.161,-14.82,0],[-2.222,-17.082,-0.912,-16.632,1],[-4.494,-17.082,-3.204,-16.632,1],[-9.051,-17.082,-7.751,-16.632,1],[-6.783,-17.082,-5.483,-16.632,1],[-0.289,-11.506,0.161,-10.216,0]],"doors":[[-31.724,3.812,-31.724,4.742,-1,0],[-26.829,3.812,-26.829,4.742,1,0],[-34.502,2.83,-33.602,2.83,0,1],[-28.311,-2.301,-28.311,-1.401,-1,0],[-35.792,-3.253,-34.807,-3.253,0,-1],[-26.137,-3.253,-25.365,-3.253,0,-1],[-24.593,-3.253,-25.365,-3.253,0,-1],[-24.365,3.367,-24.365,4.156,-1,0],[-35.587,-6.832,-34.787,-6.832,0,-1],[-36.849,-8.267,-36.849,-7.126,1,0],[-35.74,-8.544,-34.862,-8.544,0,1],[-30.032,-8.544,-28.979,-8.544,0,1],[-33.967,-11.654,-33.967,-10.724,1,0],[-30.805,-11.654,-30.805,-10.724,-1,0],[-26.192,-8.544,-25.402,-8.544,0,1],[-24.613,-8.544,-25.402,-8.544,0,1],[-26.561,-9.619,-26.561,-8.917,-1,0],[-26.561,-12.193,-26.561,-11.64,1,0],[-26.561,-11.088,-26.561,-11.64,1,0],[-28.155,-13.717,-28.155,-13.12,-1,0],[-21.696,-13.707,-20.915,-13.707,0,-1],[-20.135,-13.707,-20.915,-13.707,0,-1],[-17.974,-3.636,-17.193,-3.636,0,1],[-16.413,-3.636,-17.193,-3.636,0,1],[-11.854,-0.246,-11.134,-0.246,0,1],[-10.415,-0.246,-11.134,-0.246,0,1],[-12.105,-2.235,-12.105,-1.357,-1,0],[-9.899,-2.03,-9.899,-1.153,1,0],[-15.33,-9.577,-14.33,-9.577,0,1],[-11.847,-13.707,-11.154,-13.707,0,-1],[-10.461,-13.707,-11.154,-13.707,0,-1],[-17.62,-9.803,-16.9,-9.803,0,-1],[-16.18,-9.803,-16.9,-9.803,0,-1],[-3.772,-7.576,-2.895,-7.576,0,-1],[-2.649,-9.809,-2.649,-9.055,-1,0],[-5.124,-9.919,-4.674,-9.919,0,1],[-4.224,-9.919,-4.674,-9.919,0,1],[-6.934,-11.64,-6.134,-11.64,0,-1],[-1.414,-11.64,-0.614,-11.64,0,1],[-9.882,-13.066,-9.882,-11.936,1,0],[-26.426,-5.436,-26.426,-3.946,-1,0],[-12.105,-5.347,-12.105,-4.031,1,0],[-8.853,-8.174,-8.151,-8.174,0,1],[-11.39,-8.115,-10.69,-8.115,0,1]],"stairs":[[-15.602,-12.103,-14.448,-9.893,"h"],[-13.561,-13.394,-12.105,-12.066,"v"],[-22.633,-16.681,-19.197,-15.331,"h"],[-11.896,-16.781,-10.162,-14.831,"h"],[0.23,-10.476,2.33,-9.176,"h"]],"lift":[-13.65,-11.255,-12.159,-9.476],"notes":[["hlavní vstup",-20.915,-17.131],["vstup do sklepa",1.28,-10.926]],"rooms":[{"id":"1.01","area":28.4,"pts":[[-24.115,-9.947],[-16.115,-9.947],[-16.115,-13.467],[-24.115,-13.467]],"ip":[-22.365,-11.697],"rad":1.8,"zone":"stara","geoName":"Vstup + návštěvní místnost"},{"id":"1.02","area":97.8,"pts":[[-26.335,-3.407],[-24.615,-3.407],[-24.615,-3.867],[-16.535,-3.867],[-16.535,-8.307],[-16.215,-8.307],[-16.215,-8.167],[-6.815,-8.167],[-6.815,-7.647],[-2.735,-7.647],[-2.735,-9.827],[-10.175,-9.827],[-10.175,-13.467],[-11.975,-13.467],[-11.975,-9.407],[-16.115,-9.407],[-16.115,-9.627],[-18.335,-9.627],[-18.335,-5.207],[-18.475,-5.207],[-18.475,-9.627],[-24.135,-9.627],[-24.135,-5.167],[-24.395,-5.167],[-24.395,-8.367],[-36.595,-8.367],[-36.595,-6.927],[-26.335,-6.927]],"ip":[-21.345,-6.657],"rad":2.85,"zone":"stara","geoName":"Společenská místnost"},{"id":"1.03","area":12.5,"pts":[[-30.735,-8.687],[-28.255,-8.687],[-28.255,-13.667],[-30.735,-13.667]],"ip":[-29.535,-9.887],"rad":1.25,"zone":"stara","geoName":"Koupelna"},{"id":"1.04","area":1.8,"pts":[[-28.075,-12.447],[-26.655,-12.447],[-26.655,-13.667],[-28.075,-13.667]],"ip":[-27.475,-13.047],"rad":0.65,"zone":"stara","geoName":""},{"id":"1.05","area":1.2,"pts":[[-28.075,-11.467],[-26.655,-11.467],[-26.655,-12.267],[-28.075,-12.267]],"ip":[-27.725,-11.817],"rad":0.4,"zone":"stara","geoName":""},{"id":"1.06","area":1.2,"pts":[[-28.075,-10.487],[-26.655,-10.487],[-26.655,-11.287],[-28.075,-11.287]],"ip":[-27.725,-10.837],"rad":0.4,"zone":"stara","geoName":""},{"id":"1.07","area":2.4,"pts":[[-28.075,-8.687],[-26.655,-8.687],[-26.655,-10.307],[-28.075,-10.307]],"ip":[-27.375,-9.387],"rad":0.75,"zone":"stara","geoName":""},{"id":"1.08","area":1.6,"pts":[[-26.495,-8.687],[-25.515,-8.687],[-25.515,-10.307],[-26.495,-10.307]],"ip":[-26.045,-9.137],"rad":0.5,"zone":"stara","geoName":""},{"id":"1.09","area":8.5,"pts":[[-25.355,-8.687],[-24.395,-8.687],[-24.395,-13.667],[-26.495,-13.667],[-26.495,-10.487],[-25.355,-10.487]],"ip":[-25.445,-11.537],"rad":1.1,"zone":"stara","geoName":"WC"},{"id":"1.10","area":15.0,"pts":[[-33.875,-8.687],[-30.895,-8.687],[-30.895,-13.667],[-33.875,-13.667]],"ip":[-32.425,-10.137],"rad":1.5,"zone":"stara","geoName":"Prádelna"},{"id":"1.11","area":12.7,"pts":[[-36.595,-8.687],[-34.075,-8.687],[-34.075,-13.667],[-36.595,-13.667]],"ip":[-35.345,-9.937],"rad":1.3,"zone":"stara","geoName":"Koupelna"},{"id":"1.12","area":17.7,"pts":[[-36.595,-3.407],[-31.315,-3.407],[-31.315,-6.727],[-36.595,-6.727]],"ip":[-34.945,-5.057],"rad":1.7,"zone":"stara","geoName":"Šatna zaměstnanců"},{"id":"1.13","area":48.3,"pts":[[-36.595,2.753],[-28.375,2.753],[-28.375,-3.087],[-36.595,-3.087]],"ip":[-33.695,-0.147],"rad":2.95,"zone":"stara","geoName":"Jídelna malá + aktivizační místnost"},{"id":"1.14","area":28.4,"pts":[[-36.595,8.813],[-31.795,8.813],[-31.795,2.933],[-36.595,2.933]],"ip":[-34.195,6.413],"rad":2.45,"zone":"stara","geoName":"Sklad"},{"id":"1.15","area":28.1,"pts":[[-31.655,8.813],[-26.915,8.813],[-26.915,2.933],[-31.655,2.933]],"ip":[-29.305,6.463],"rad":2.4,"zone":"stara","geoName":"Sklad"},{"id":"1.16","area":34.3,"pts":[[-26.775,8.813],[-24.635,8.813],[-24.635,2.813],[-24.995,2.813],[-24.995,2.653],[-24.635,2.653],[-24.635,-3.087],[-28.255,-3.087],[-28.255,2.773],[-26.095,2.773],[-26.095,2.933],[-26.775,2.933]],"ip":[-26.455,1.013],"rad":1.85,"zone":"stara","geoName":"Televizní koutek"},{"id":"1.17","area":15.0,"pts":[[-31.135,-3.407],[-28.135,-3.407],[-28.135,-3.687],[-26.535,-3.687],[-26.535,-6.727],[-31.135,-6.727]],"ip":[-29.485,-5.057],"rad":1.7,"zone":"stara","geoName":"Místnost bazální stimulace"},{"id":"1.18","area":2.2,"pts":[[-18.355,-2.187],[-16.555,-2.187],[-16.555,-3.387],[-18.355,-3.387]],"ip":[-17.805,-2.737],"rad":0.6,"zone":"stara","geoName":""},{"id":"1.19","area":7.7,"pts":[[-11.955,-3.867],[-10.135,-3.867],[-10.135,-8.047],[-11.955,-8.047]],"ip":[-11.055,-4.767],"rad":0.95,"zone":"stara","geoName":"Předsíň WC (elektroměry)"},{"id":"1.20","area":6.5,"pts":[[-13.835,-3.867],[-12.275,-3.867],[-12.275,-7.987],[-13.835,-7.987]],"ip":[-13.085,-4.617],"rad":0.8,"zone":"stara","geoName":"WC zam."},{"id":"1.21","area":9.2,"pts":[[-16.215,-3.867],[-14.015,-3.867],[-14.015,-7.987],[-16.215,-7.987]],"ip":[-15.115,-4.967],"rad":1.15,"zone":"stara","geoName":"WC"},{"id":"1.22","area":20.1,"pts":[[-9.675,-0.247],[-7.135,-0.247],[-7.135,-8.087],[-9.675,-8.087]],"ip":[-8.425,-1.497],"rad":1.3,"zone":"stara","geoName":"Kuchyň"},{"id":"1.23","area":5.4,"pts":[[-11.955,-0.467],[-10.195,-0.467],[-10.195,-3.387],[-11.955,-3.387]],"ip":[-11.105,-1.317],"rad":0.9,"zone":"stara","geoName":""},{"id":"1.24","area":11.6,"pts":[[-16.215,-0.467],[-12.275,-0.467],[-12.275,-3.387],[-16.215,-3.387]],"ip":[-14.765,-1.917],"rad":1.5,"zone":"stara","geoName":"Kuchyň – zázemí"},{"id":"1.25","area":46.9,"pts":[[-6.815,-0.247],[-0.375,-0.247],[-0.375,-7.487],[-6.815,-7.487]],"ip":[-3.615,-3.447],"rad":3.25,"zone":"stara","geoName":"Jídelna velká"},{"id":"1.26","area":4.9,"pts":[[-2.575,-7.647],[-0.375,-7.647],[-0.375,-9.827],[-2.575,-9.827]],"ip":[-1.525,-8.697],"rad":1.1,"zone":"stara","geoName":""},{"id":"1.27","area":10.4,"pts":[[-7.075,-9.987],[-3.795,-9.987],[-3.795,-10.387],[-3.155,-10.387],[-3.155,-9.987],[-0.375,-9.987],[-0.375,-11.547],[-7.075,-11.547]],"ip":[-6.325,-10.737],"rad":0.8,"zone":"stara","geoName":""},{"id":"1.28","area":10.7,"pts":[[-2.535,-11.707],[-0.375,-11.707],[-0.375,-16.607],[-2.535,-16.607]],"ip":[-1.485,-12.757],"rad":1.1,"zone":"stara","geoName":"Pokoj 1"},{"id":"1.29","area":10.6,"pts":[[-4.835,-11.707],[-2.695,-11.707],[-2.695,-16.607],[-4.835,-16.607]],"ip":[-3.785,-12.757],"rad":1.1,"zone":"stara","geoName":"Pokoj 2"},{"id":"1.30","area":26.0,"pts":[[-9.595,-9.987],[-7.255,-9.987],[-7.255,-15.087],[-7.075,-15.087],[-7.075,-11.707],[-4.995,-11.707],[-4.995,-16.607],[-7.115,-16.607],[-7.115,-15.887],[-7.315,-15.887],[-7.315,-16.607],[-9.595,-16.607]],"ip":[-8.395,-15.287],"rad":1.209,"zone":"stara","geoName":"Sesterna"},{"id":"1.31","area":13.3,"pts":[[-15.795,-9.727],[-12.275,-9.727],[-12.275,-13.467],[-15.795,-13.467]],"ip":[-14.045,-11.477],"rad":1.8,"zone":"stara","geoName":""}]},{"key":"2NP","title":"2. nadzemní podlaží","walls":[[-37.094,-14.135,-36.626,-8.33],[-37.094,-7.418,-36.626,9.269],[-35.157,-10.813,-35.061,-10.6],[-35.157,-9.7,-35.061,-8.531],[-32.957,-14.135,-32.817,-10.671],[-32.488,-6.957,-32.34,-3.245],[-31.584,-6.957,-31.434,-5.767],[-30.782,-10.813,-30.623,-10.56],[-30.782,-9.66,-30.623,-8.531],[-30.724,-5.917,-30.574,-3.245],[-29.654,-6.957,-29.504,-5.767],[-29.031,-14.135,-28.881,-8.531],[-28.448,-6.957,-28.148,-3.245],[-26.443,-6.957,-26.293,-3.245],[-24.437,-14.135,-24.138,-8.531],[-24.596,-6.957,-24.114,9.269],[-22.542,-10.824,-22.443,-10.59],[-22.542,-9.69,-22.443,-8.531],[-20.254,-13.891,-20.132,-10.686],[-17.949,-10.824,-17.85,-10.6],[-17.949,-9.7,-17.85,-8.531],[-16.242,-13.891,-15.94,-7.602],[-16.242,-5.953,-15.94,-3.451],[-14.075,-5.783,-13.925,-4.703],[-14.075,-3.931,-13.925,-3.451],[-12.36,-13.891,-12.063,-9.486],[-12.168,-8.433,-11.868,-7.582],[-12.207,-5.783,-12.058,-5.108],[-12.207,-4.056,-12.058,-3.451],[-10.065,-17.093,-9.721,-11.434],[-10.065,-10.399,-9.721,-9.522],[-10.069,-7.905,-9.724,-6.747],[-10.069,-5.947,-9.724,0.207],[-6.946,-9.794,-6.668,-9.226],[-6.946,-8.326,-6.668,-7.682],[-6.963,-7.882,-6.651,0.207],[-6.919,-17.093,-6.794,-11.466],[-5.229,-9.85,-5.142,-8.869],[-5.229,-8.069,-5.142,-5.323],[-5.229,-4.523,-5.142,-2.99],[-3.086,-17.093,-2.995,-11.218],[-3.086,-10.418,-2.995,-9.564],[-0.229,-17.093,0.142,0.207],[-10.065,-17.092,0.142,-16.618],[-37.094,-14.136,-35.326,-13.665],[-34.176,-14.136,-30.777,-13.665],[-29.617,-14.136,-28.021,-13.665],[-26.861,-14.136,-26.511,-13.665],[-25.351,-14.136,-24.138,-13.665],[-24.436,-13.891,-23.468,-13.542],[-22.308,-13.891,-18.092,-13.542],[-16.932,-13.891,-9.721,-13.542],[-10.065,-11.556,-9.051,-11.466],[-8.251,-11.556,-5.344,-11.466],[-4.544,-11.556,-2.995,-11.466],[-35.157,-10.813,-30.623,-10.671],[-22.542,-10.824,-17.85,-10.686],[-10.065,-9.794,-5.142,-9.607],[-5.229,-9.838,0.142,-9.564],[-37.094,-8.62,-36.526,-8.531],[-35.626,-8.62,-30.103,-8.531],[-29.203,-8.62,-27.561,-8.531],[-26.661,-8.62,-24.088,-8.531],[-23.188,-8.62,-17.27,-8.531],[-16.37,-8.62,-15.94,-8.531],[-10.069,-7.882,-6.657,-7.682],[-16.242,-7.88,-11.868,-7.581],[-37.094,-6.957,-36.406,-6.863],[-35.506,-6.957,-32.482,-6.863],[-31.499,-6.957,-29.386,-6.863],[-28.386,-6.957,-27.719,-6.863],[-26.702,-6.957,-25.605,-6.863],[-24.728,-6.957,-24.114,-6.863],[-31.584,-5.917,-29.504,-5.767],[-16.242,-5.783,-15.368,-5.633],[-14.438,-5.783,-12.058,-5.633],[-5.229,-6.909,0.142,-6.802],[-16.242,-4.864,-13.925,-4.714],[-24.595,-3.803,-20.723,-3.451],[-19.512,-3.803,-9.724,-3.451],[-37.094,-3.697,-24.114,-3.245],[-6.963,-3.093,-6.161,-2.99],[-5.361,-3.093,0.142,-2.99],[-10.069,-0.247,0.142,0.207],[-37.094,8.819,-24.114,9.269]],"rails":[[-37.094,-7.298,-38.832,-7.298],[-38.832,-7.298,-38.832,-8.898],[-33.654,-14.136,-33.654,-16.418],[-33.654,-16.418,-10.065,-16.418],[-24.113,-0.021,-10.069,-0.021]],"windows":[[-11.527,-13.941,-10.457,-13.491,1],[-14.973,-13.941,-14.008,-13.491,1],[-24.58,6.478,-24.13,8.127,0],[-24.58,3.513,-24.13,5.145,0],[-24.58,0.531,-24.13,2.18,0],[-24.58,-2.434,-24.13,-0.768,0],[-37.085,6.513,-36.635,8.144,0],[-37.085,3.513,-36.635,5.162,0],[-37.085,0.531,-36.635,2.18,0],[-8.994,-0.245,-7.694,0.205,1],[-6.651,-0.245,-5.391,0.205,1],[-4.471,-0.245,-3.171,0.205,1],[-2.241,-0.245,-0.941,0.205,1],[-0.269,-2.207,0.181,-0.907,0],[-0.269,-4.493,0.181,-3.193,0],[-0.269,-6.773,0.181,-5.493,0],[-0.269,-9.089,0.181,-7.789,0],[-0.269,-11.378,0.181,-10.078,0],[-0.269,-13.678,0.181,-12.378,0],[-0.269,-15.958,0.181,-14.658,0],[-2.275,-17.08,-0.975,-16.63,1],[-6.744,-17.08,-5.434,-16.63,1],[-4.504,-17.08,-3.204,-16.63,1],[-8.981,-17.08,-7.671,-16.63,1],[-19.592,-13.941,-18.442,-13.491,1],[-21.958,-13.941,-20.798,-13.491,1],[-32.287,-14.136,-31.127,-13.665,1],[-37.094,-11.765,-36.626,-10.615,0],[-37.085,-5.857,-36.635,-4.707,0]],"doors":[[-36.406,-6.91,-35.506,-6.91,0,1],[-32.482,-6.91,-31.499,-6.91,0,1],[-29.386,-6.91,-28.386,-6.91,0,1],[-27.719,-6.91,-26.702,-6.91,0,-1],[-25.605,-6.91,-24.728,-6.91,0,1],[-36.86,-8.33,-36.86,-7.418,1,0],[-36.526,-8.575,-35.626,-8.575,0,-1],[-35.109,-10.6,-35.109,-9.7,-1,0],[-30.703,-10.56,-30.703,-9.66,1,0],[-30.103,-8.575,-29.203,-8.575,0,-1],[-27.561,-8.575,-26.661,-8.575,0,-1],[-24.088,-8.575,-23.188,-8.575,0,-1],[-35.326,-13.9,-34.751,-13.9,0,1],[-34.176,-13.9,-34.751,-13.9,0,1],[-30.777,-13.9,-30.197,-13.9,0,1],[-29.617,-13.9,-30.197,-13.9,0,1],[-28.021,-13.9,-27.441,-13.9,0,1],[-26.861,-13.9,-27.441,-13.9,0,1],[-20.723,-3.627,-20.118,-3.627,0,-1],[-19.512,-3.627,-20.118,-3.627,0,-1],[-16.091,-7.602,-16.091,-6.778,1,0],[-16.091,-5.953,-16.091,-6.778,1,0],[-15.368,-5.708,-14.438,-5.708,0,-1],[-17.27,-8.575,-16.37,-8.575,0,-1],[-17.9,-10.6,-17.9,-9.7,1,0],[-22.493,-10.59,-22.493,-9.69,-1,0],[-18.092,-13.716,-17.512,-13.716,0,1],[-16.932,-13.716,-17.512,-13.716,0,1],[-23.468,-13.716,-22.888,-13.716,0,1],[-22.308,-13.716,-22.888,-13.716,0,1],[-6.161,-3.042,-5.361,-3.042,0,-1],[-5.186,-5.323,-5.186,-4.523,1,0],[-5.186,-8.869,-5.186,-8.069,1,0],[-9.896,-6.747,-9.896,-5.947,-1,0],[-3.04,-11.218,-3.04,-10.418,-1,0],[-9.051,-11.511,-8.251,-11.511,0,-1],[-5.344,-11.511,-4.544,-11.511,0,-1],[-9.893,-11.434,-9.893,-10.916,-1,0],[-9.893,-10.399,-9.893,-10.916,-1,0],[-6.807,-9.226,-6.807,-8.326,-1,0],[-12.132,-5.108,-12.132,-4.056,1,0],[-14.0,-4.703,-14.0,-3.931,1,0],[-26.511,-13.9,-25.931,-13.9,0,1],[-25.351,-13.9,-25.931,-13.9,0,1]],"stairs":[[-15.598,-9.346,-12.229,-8.153,"v"],[-15.622,-11.733,-14.613,-9.346,"h"],[-15.622,-13.348,-12.229,-11.871,"v"],[-38.832,-16.076,-37.094,-8.898,"h"]],"lift":[-14.178,-11.803,-12.403,-9.749],"notes":[["venkovní schodiště",-37.963,-16.525],["balkon",-21.859,-15.868],["balkon",-17.091,-1.621]],"rooms":[{"id":"2.01","area":52.2,"pts":[[-12.052,-3.811],[-10.092,-3.811],[-10.092,-7.891],[-6.972,-7.891],[-6.972,-9.591],[-10.092,-9.591],[-10.092,-13.531],[-12.072,-13.531],[-12.072,-9.471],[-12.372,-9.471],[-12.372,-13.531],[-15.932,-13.531],[-15.932,-7.871],[-12.192,-7.871],[-12.192,-8.431],[-11.872,-8.431],[-11.872,-7.551],[-15.932,-7.551],[-15.932,-5.791],[-12.052,-5.791]],"ip":[-14.182,-9.611],"rad":1.8,"zone":"stara","geoName":""},{"id":"2.02","area":20.5,"pts":[[-9.732,-0.251],[-6.992,-0.251],[-6.992,-7.671],[-9.732,-7.671]],"ip":[-8.382,-1.601],"rad":1.4,"zone":"stara","geoName":"Pokoj 7"},{"id":"2.03","area":9.3,"pts":[[-6.652,-3.091],[-5.252,-3.091],[-5.252,-9.591],[-6.652,-9.591]],"ip":[-6.002,-3.741],"rad":0.7,"zone":"stara","geoName":""},{"id":"2.04","area":17.6,"pts":[[-6.652,-0.251],[-0.252,-0.251],[-0.252,-2.971],[-6.652,-2.971]],"ip":[-5.302,-1.601],"rad":1.4,"zone":"stara","geoName":"Pokoj 8"},{"id":"2.05","area":18.2,"pts":[[-5.132,-3.091],[-0.252,-3.091],[-0.252,-6.791],[-5.132,-6.791]],"ip":[-3.332,-4.891],"rad":1.85,"zone":"stara","geoName":"Pokoj 9"},{"id":"2.06","area":13.0,"pts":[[-5.132,-6.911],[-0.252,-6.911],[-0.252,-9.551],[-5.132,-9.551]],"ip":[-3.832,-8.211],"rad":1.35,"zone":"stara","geoName":"Pokoj 10"},{"id":"2.07","area":11.0,"pts":[[-9.712,-9.831],[-3.112,-9.831],[-3.112,-11.451],[-9.712,-11.451]],"ip":[-8.912,-10.631],"rad":0.85,"zone":"stara","geoName":""},{"id":"2.08","area":18.7,"pts":[[-2.992,-9.831],[-0.252,-9.831],[-0.252,-16.591],[-2.992,-16.591]],"ip":[-1.642,-11.181],"rad":1.4,"zone":"stara","geoName":"Pokoj 11"},{"id":"2.09","area":18.7,"pts":[[-6.792,-11.551],[-3.112,-11.551],[-3.112,-16.591],[-6.792,-16.591]],"ip":[-4.992,-13.351],"rad":1.85,"zone":"stara","geoName":"Pokoj 12"},{"id":"2.10","area":14.2,"pts":[[-9.712,-11.551],[-6.932,-11.551],[-6.932,-16.591],[-9.712,-16.591]],"ip":[-8.362,-12.901],"rad":1.4,"zone":"stara","geoName":"Pokoj 13"},{"id":"2.11","area":57.0,"pts":[[-24.112,-3.811],[-16.252,-3.811],[-16.252,-8.511],[-36.632,-8.511],[-36.632,-6.951],[-24.112,-6.951]],"ip":[-21.782,-6.161],"rad":2.4,"zone":"pristavba","geoName":""},{"id":"2.12","area":14.2,"pts":[[-17.852,-8.611],[-16.252,-8.611],[-16.252,-13.531],[-20.132,-13.531],[-20.132,-10.831],[-17.852,-10.831]],"ip":[-17.632,-12.111],"rad":1.4,"zone":"pristavba","geoName":"Pokoj 3"},{"id":"2.13","area":9.4,"pts":[[-22.452,-8.611],[-17.972,-8.611],[-17.972,-10.671],[-22.452,-10.671]],"ip":[-21.452,-9.611],"rad":1.05,"zone":"pristavba","geoName":"WC"},{"id":"2.14","area":14.1,"pts":[[-24.132,-8.611],[-22.552,-8.611],[-22.552,-10.831],[-20.272,-10.831],[-20.272,-13.531],[-24.132,-13.531]],"ip":[-22.782,-12.161],"rad":1.4,"zone":"pristavba","geoName":"Pokoj 4"},{"id":"2.15","area":22.5,"pts":[[-28.872,-8.611],[-24.452,-8.611],[-24.452,-13.651],[-28.872,-13.651]],"ip":[-26.672,-10.811],"rad":2.25,"zone":"pristavba","geoName":"Kancelář ředitelky"},{"id":"2.16","area":14.3,"pts":[[-30.632,-8.611],[-29.052,-8.611],[-29.052,-13.651],[-32.812,-13.651],[-32.812,-10.811],[-30.632,-10.811]],"ip":[-31.412,-12.211],"rad":1.45,"zone":"pristavba","geoName":"Pokoj 5"},{"id":"2.17","area":8.8,"pts":[[-35.052,-8.611],[-30.792,-8.611],[-30.792,-10.651],[-35.052,-10.651]],"ip":[-34.052,-9.611],"rad":1.05,"zone":"pristavba","geoName":"WC"},{"id":"2.18","area":13.8,"pts":[[-36.632,-8.611],[-35.152,-8.611],[-35.152,-10.811],[-32.972,-10.811],[-32.972,-13.651],[-36.632,-13.651]],"ip":[-35.232,-12.211],"rad":1.45,"zone":"pristavba","geoName":"Pokoj 6"},{"id":"2.19","area":13.2,"pts":[[-36.632,-3.691],[-32.512,-3.691],[-32.512,-6.851],[-36.632,-6.851]],"ip":[-35.082,-5.241],"rad":1.6,"zone":"pristavba","geoName":"Kancelář sociální pracovnice"},{"id":"2.20","area":4.1,"pts":[[-32.332,-3.691],[-30.752,-3.691],[-30.752,-5.751],[-31.612,-5.751],[-31.612,-6.851],[-32.332,-6.851]],"ip":[-31.582,-4.441],"rad":0.8,"zone":"pristavba","geoName":"WC zam. ženy"},{"id":"2.21","area":1.7,"pts":[[-31.432,-5.911],[-29.672,-5.911],[-29.672,-6.851],[-31.432,-6.851]],"ip":[-30.982,-6.361],"rad":0.5,"zone":"pristavba","geoName":""},{"id":"2.22","area":5.6,"pts":[[-30.572,-3.691],[-28.472,-3.691],[-28.472,-6.851],[-29.532,-6.851],[-29.532,-5.751],[-30.572,-5.751]],"ip":[-29.522,-4.741],"rad":1.07,"zone":"pristavba","geoName":"WC zam. muži"},{"id":"2.23","area":5.4,"pts":[[-28.152,-3.691],[-26.472,-3.691],[-26.472,-6.851],[-28.152,-6.851]],"ip":[-27.352,-4.491],"rad":0.85,"zone":"pristavba","geoName":"WC klienti"},{"id":"2.24","area":5.4,"pts":[[-26.292,-3.691],[-24.612,-3.691],[-24.612,-6.851],[-26.292,-6.851]],"ip":[-25.492,-4.491],"rad":0.85,"zone":"pristavba","geoName":"Kuchyňka"},{"id":"2.25","area":1.4,"pts":[[-15.932,-4.871],[-14.092,-4.871],[-14.092,-5.611],[-15.932,-5.611]],"ip":[-15.582,-5.221],"rad":0.4,"zone":"stara","geoName":""},{"id":"2.26","area":3.1,"pts":[[-13.932,-3.811],[-12.232,-3.811],[-12.232,-5.611],[-13.932,-5.611]],"ip":[-13.132,-4.611],"rad":0.85,"zone":"stara","geoName":"WC"},{"id":"2.27","area":1.7,"pts":[[-15.932,-3.811],[-14.092,-3.811],[-14.092,-4.691],[-15.932,-4.691]],"ip":[-15.532,-4.211],"rad":0.45,"zone":"stara","geoName":""}]},{"key":"3NP","title":"3. nadzemní podlaží","walls":[[-16.264,-13.971,-15.817,-3.374],[-14.334,-8.119,-14.238,-7.887],[-14.334,-6.932,-14.238,-6.889],[-14.334,-5.865,-14.238,-5.724],[-14.334,-5.022,-14.238,-4.783],[-14.334,-3.975,-14.238,-3.374],[-13.925,-11.615,-13.775,-10.052],[-12.365,-11.615,-12.215,-10.052],[-12.494,-8.119,-12.104,-7.569],[-12.494,-6.691,-12.104,-5.37],[-12.494,-4.493,-12.104,-3.374],[-10.087,-17.079,-9.715,-13.425],[-10.074,-13.971,-9.728,-11.408],[-10.074,-10.375,-9.728,-9.554],[-10.051,-9.585,-9.751,-9.554],[-10.051,-7.927,-9.751,-6.726],[-10.051,-5.926,-9.751,-3.374],[-10.107,-3.914,-9.696,0.192],[-6.953,-9.838,-6.643,-9.202],[-6.953,-8.302,-6.643,-7.622],[-6.946,-7.92,-6.649,0.192],[-6.917,-17.079,-6.794,-11.452],[-5.226,-9.838,-5.138,-8.875],[-5.226,-8.075,-5.138,-5.304],[-5.226,-4.504,-5.138,-2.984],[-3.087,-17.079,-2.979,-11.218],[-3.087,-10.418,-2.979,-9.582],[-0.223,-17.079,0.138,0.192],[-10.087,-17.079,0.138,-16.639],[-16.264,-13.971,-9.715,-13.425],[-10.074,-11.586,-9.045,-11.452],[-8.245,-11.586,-5.344,-11.452],[-4.544,-11.586,-2.979,-11.452],[-13.925,-11.615,-12.215,-11.465],[-13.925,-10.202,-12.215,-10.052],[-10.074,-9.838,0.138,-9.582],[-10.051,-7.92,-6.648,-7.622],[-16.264,-8.119,-12.104,-7.815],[-16.264,-6.956,-14.238,-6.806],[-16.264,-5.923,-12.104,-5.772],[-5.226,-6.914,0.138,-6.792],[-16.264,-4.939,-14.238,-4.789],[-16.264,-3.914,-9.676,-3.374],[-6.946,-3.074,-6.159,-2.984],[-5.359,-3.074,0.138,-2.984],[-10.106,-0.226,0.138,0.192]],"rails":[],"windows":[[-15.142,-3.869,-14.615,-3.419,1],[-11.786,-3.869,-10.5,-3.419,1],[-13.465,-13.923,-12.646,-13.473,1],[-11.826,-13.923,-10.53,-13.473,1],[-15.402,-13.923,-14.125,-13.473,1],[-16.265,-5.481,-15.815,-4.955,0],[-16.265,-6.53,-15.815,-6.003,0],[-16.265,-7.589,-15.815,-7.062,0],[-16.265,-9.394,-15.815,-8.186,0],[-8.966,-0.242,-7.666,0.208,1],[-6.649,-0.242,-5.389,0.208,1],[-4.469,-0.242,-3.169,0.208,1],[-2.239,-0.242,-0.939,0.208,1],[-0.268,-2.186,0.182,-0.886,0],[-0.268,-4.474,0.182,-3.174,0],[-0.268,-6.754,0.182,-5.474,0],[-0.268,-9.095,0.182,-7.795,0],[-0.268,-11.378,0.182,-10.078,0],[-0.268,-13.678,0.182,-12.378,0],[-0.268,-15.958,0.182,-14.658,0],[-2.259,-17.084,-0.959,-16.634,1],[-6.744,-17.084,-5.434,-16.634,1],[-4.504,-17.084,-3.204,-16.634,1],[-8.975,-17.084,-7.665,-16.634,1]],"doors":[[-9.901,-6.726,-9.901,-5.926,-1,0],[-6.159,-3.029,-5.359,-3.029,0,-1],[-5.182,-5.304,-5.182,-4.504,1,0],[-5.182,-8.875,-5.182,-8.075,1,0],[-9.901,-11.408,-9.901,-10.891,-1,0],[-9.901,-10.375,-9.901,-10.891,-1,0],[-3.033,-11.218,-3.033,-10.818,-1,0],[-3.033,-10.418,-3.033,-10.818,-1,0],[-9.045,-11.519,-8.245,-11.519,0,-1],[-5.344,-11.519,-4.544,-11.519,0,-1],[-12.299,-5.37,-12.299,-4.493,1,0],[-12.299,-7.569,-12.299,-6.691,1,0],[-6.798,-9.202,-6.798,-8.302,-1,0],[-14.286,-4.783,-14.286,-3.975,1,0],[-14.286,-5.724,-14.286,-5.022,1,0],[-14.286,-6.889,-14.286,-5.865,1,0],[-14.286,-7.887,-14.286,-6.932,1,0]],"stairs":[[-15.776,-9.368,-12.204,-8.302,"v"],[-15.755,-10.341,-14.482,-9.486,"h"],[-14.38,-11.442,-13.87,-10.127,"v"],[-14.38,-13.305,-12.054,-12.044,"v"]],"lift":[-13.694,-11.365,-12.437,-10.302],"notes":[["dveře na půdu",-16.693,-14.098]],"rooms":[{"id":"3.01","area":36.4,"pts":[[-12.104,-3.908],[-10.104,-3.908],[-10.104,-13.408],[-15.824,-13.408],[-15.824,-8.128],[-12.104,-8.128]],"ip":[-11.374,-9.058],"rad":1.26,"zone":"stara","geoName":""},{"id":"3.02","area":20.5,"pts":[[-9.704,-0.228],[-6.964,-0.228],[-6.964,-7.608],[-9.704,-7.608]],"ip":[-8.354,-1.578],"rad":1.4,"zone":"stara","geoName":"Pokoj 14"},{"id":"3.03","area":4.6,"pts":[[-9.704,-7.928],[-6.964,-7.928],[-6.964,-9.568],[-9.704,-9.568]],"ip":[-8.904,-8.728],"rad":0.85,"zone":"stara","geoName":""},{"id":"3.04","area":9.3,"pts":[[-6.644,-3.068],[-5.244,-3.068],[-5.244,-9.568],[-6.644,-9.568]],"ip":[-5.994,-3.718],"rad":0.7,"zone":"stara","geoName":""},{"id":"3.05","area":17.7,"pts":[[-6.644,-0.228],[-0.244,-0.228],[-0.244,-2.968],[-6.644,-2.968]],"ip":[-5.294,-1.578],"rad":1.4,"zone":"stara","geoName":"Pokoj 15"},{"id":"3.06","area":18.3,"pts":[[-5.144,-3.068],[-0.244,-3.068],[-0.244,-6.768],[-5.144,-6.768]],"ip":[-3.294,-4.918],"rad":1.9,"zone":"stara","geoName":"Pokoj 16"},{"id":"3.07","area":13.2,"pts":[[-5.144,-6.908],[-0.244,-6.908],[-0.244,-9.568],[-5.144,-9.568]],"ip":[-3.844,-8.208],"rad":1.35,"zone":"stara","geoName":"Pokoj 17"},{"id":"3.08","area":10.7,"pts":[[-9.724,-9.828],[-3.104,-9.828],[-3.104,-11.428],[-9.724,-11.428]],"ip":[-8.924,-10.628],"rad":0.85,"zone":"stara","geoName":""},{"id":"3.09","area":18.8,"pts":[[-2.984,-9.828],[-0.244,-9.828],[-0.244,-16.628],[-2.984,-16.628]],"ip":[-1.634,-11.178],"rad":1.4,"zone":"stara","geoName":"Pokoj 18"},{"id":"3.10","area":18.8,"pts":[[-6.804,-11.588],[-3.104,-11.588],[-3.104,-16.628],[-6.804,-16.628]],"ip":[-5.004,-13.388],"rad":1.85,"zone":"stara","geoName":"Pokoj 19"},{"id":"3.11","area":14.2,"pts":[[-9.724,-11.588],[-6.944,-11.588],[-6.944,-16.628],[-9.724,-16.628]],"ip":[-8.374,-12.938],"rad":1.4,"zone":"stara","geoName":"Pokoj 20"},{"id":"3.12","area":1.8,"pts":[[-13.784,-10.208],[-12.384,-10.208],[-12.384,-11.448],[-13.784,-11.448]],"ip":[-13.184,-10.808],"rad":0.65,"zone":"stara","geoName":""},{"id":"3.13","area":3.3,"pts":[[-14.244,-5.928],[-12.524,-5.928],[-12.524,-7.788],[-14.244,-7.788]],"ip":[-13.394,-6.778],"rad":0.9,"zone":"stara","geoName":"WC"},{"id":"3.14","area":1.3,"pts":[[-15.824,-6.948],[-14.364,-6.948],[-14.364,-7.788],[-15.824,-7.788]],"ip":[-15.424,-7.348],"rad":0.45,"zone":"stara","geoName":"WC"},{"id":"3.15","area":1.3,"pts":[[-15.824,-5.928],[-14.364,-5.928],[-14.364,-6.788],[-15.824,-6.788]],"ip":[-15.424,-6.328],"rad":0.45,"zone":"stara","geoName":"WC"},{"id":"3.16","area":3.2,"pts":[[-14.244,-3.908],[-12.524,-3.908],[-12.524,-5.748],[-14.244,-5.748]],"ip":[-13.394,-4.758],"rad":0.9,"zone":"stara","geoName":"WC"},{"id":"3.17","area":1.2,"pts":[[-15.824,-4.948],[-14.364,-4.948],[-14.364,-5.748],[-15.824,-5.748]],"ip":[-15.474,-5.298],"rad":0.4,"zone":"stara","geoName":""},{"id":"3.18","area":1.3,"pts":[[-15.824,-3.908],[-14.364,-3.908],[-14.364,-4.768],[-15.824,-4.768]],"ip":[-15.424,-4.308],"rad":0.45,"zone":"stara","geoName":""}]}]}</script>
+<script type="application/json" id="saved-state">{"version":1,"savedAt":null,"active":"s1","compare":"s1","settings":{"limits":{"1NP":19,"2NP":19,"3NP":19,"pristavba":12,"total":44},"maxPerRoom":3,"minArea":0},"scenarios":[{"id":"s1","name":"Současný stav (11/2026)","note":"Podle výkresu „Oáza klidu – rozložení – současný stav“ (11. 11. 2026). Plně vybarvená lůžka = klienti přestěhovaní z 1.NP.","locked":false,"beds":{"1NP":[],"2NP":[{"id":"b1","x":-16.752,"y":-12.481,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b10","x":-4.098,"y":-3.58,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":"Ivanka"},{"id":"b11","x":-1.284,"y":-6.302,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":"Karolína"},{"id":"b12","x":-1.284,"y":-7.411,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b13","x":-4.098,"y":-7.411,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b14","x":-2.492,"y":-12.601,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b15","x":-2.492,"y":-15.557,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b16","x":-0.734,"y":-10.881,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b17","x":-9.23,"y":-15.557,"rot":0,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b18","x":-7.432,"y":-12.601,"rot":0,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b19","x":-3.612,"y":-12.601,"rot":0,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b2","x":-19.639,"y":-12.5,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b20","x":-6.292,"y":-15.557,"rot":0,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b21","x":-3.612,"y":-15.557,"rot":0,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b22","x":-23.562,"y":-12.499,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b23","x":-20.846,"y":-12.499,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b24","x":-7.492,"y":-1.301,"rot":180,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b25","x":-9.23,"y":-1.3,"rot":180,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b26","x":-7.492,"y":-6.621,"rot":180,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b3","x":-29.55,"y":-12.62,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b4","x":-32.329,"y":-12.613,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b5","x":-34.022,"y":-11.311,"rot":90,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b5tgeapkok","x":-23.612,"y":-4.861,"rot":0,"w":1,"l":2.1,"sex":"","hl":false,"label":""},{"id":"b6","x":-3.998,"y":-0.75,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b655899r16","x":-22.132,"y":-4.861,"rot":0,"w":1,"l":2.1,"sex":"","hl":false,"label":""},{"id":"b66ye4howa","x":-20.532,"y":-4.861,"rot":0,"w":1,"l":2.1,"sex":"","hl":false,"label":""},{"id":"b6anm6lczh","x":-19.032,"y":-4.861,"rot":0,"w":1,"l":2.1,"sex":"","hl":false,"label":""},{"id":"b6d08bpcbr","x":-17.532,"y":-4.861,"rot":0,"w":1,"l":2.1,"sex":"","hl":false,"label":""},{"id":"b7","x":-1.29,"y":-0.75,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b8","x":-1.284,"y":-2.487,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b9","x":-1.29,"y":-3.591,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":"Maruška"}],"3NP":[{"id":"b27","x":-3.894,"y":-2.45,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b28","x":-1.294,"y":-0.728,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b29","x":-1.294,"y":-2.468,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b30","x":-4.099,"y":-3.563,"rot":270,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b31","x":-1.275,"y":-6.235,"rot":270,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b32","x":-1.275,"y":-7.396,"rot":270,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b33","x":-4.107,"y":-7.444,"rot":270,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b34","x":-7.464,"y":-1.278,"rot":180,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b35","x":-9.204,"y":-1.278,"rot":180,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b36","x":-3.604,"y":-15.578,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b37","x":-6.304,"y":-15.578,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b38","x":-1.934,"y":-16.128,"rot":270,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b39","x":-0.725,"y":-10.878,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b40","x":-7.444,"y":-15.578,"rot":0,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b41","x":-7.444,"y":-12.638,"rot":0,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b42","x":-3.604,"y":-12.638,"rot":0,"w":1,"l":2.1,"sex":"Z","hl":false,"label":""},{"id":"b43","x":-7.464,"y":-5.178,"rot":0,"w":1,"l":2.1,"sex":"M","hl":false,"label":""},{"id":"b44","x":-1.279,"y":-3.563,"rot":270,"w":1,"l":2.1,"sex":"M","hl":true,"label":""}]},"rooms":{"1.01":{"name":"Vstup + návštěvní místnost","use":"spolecne","note":""},"1.02":{"name":"Společenská místnost","use":"spolecne","note":""},"1.03":{"name":"Koupelna","use":"hygiena","note":""},"1.04":{"name":"","use":"jine","note":""},"1.05":{"name":"","use":"jine","note":""},"1.06":{"name":"","use":"jine","note":""},"1.07":{"name":"","use":"jine","note":""},"1.08":{"name":"","use":"jine","note":""},"1.09":{"name":"WC","use":"hygiena","note":""},"1.10":{"name":"Prádelna","use":"sklad","note":""},"1.11":{"name":"Koupelna","use":"hygiena","note":""},"1.12":{"name":"Šatna zaměstnanců","use":"zazemi","note":""},"1.13":{"name":"Jídelna malá + aktivizační místnost","use":"spolecne","note":""},"1.14":{"name":"Sklad 1","use":"sklad","note":""},"1.15":{"name":"Společná kancelář","use":"kancelar","note":""},"1.16":{"name":"Televizní koutek","use":"spolecne","note":""},"1.17":{"name":"Místnost bazální stimulace","use":"spolecne","note":""},"1.18":{"name":"","use":"jine","note":""},"1.19":{"name":"Předsíň WC (elektroměry)","use":"hygiena","note":""},"1.20":{"name":"WC zam.","use":"hygiena","note":""},"1.21":{"name":"WC","use":"hygiena","note":""},"1.22":{"name":"Kuchyň","use":"zazemi","note":""},"1.23":{"name":"","use":"jine","note":""},"1.24":{"name":"Kuchyň – zázemí","use":"zazemi","note":""},"1.25":{"name":"Jídelna velká","use":"spolecne","note":""},"1.26":{"name":"","use":"jine","note":""},"1.27":{"name":"","use":"komunikace","note":""},"1.28":{"name":"Kancelář ředitelky","use":"kancelar","note":""},"1.29":{"name":"Kancelář ředitelky","use":"kancelar","note":""},"1.30":{"name":"Sesterna","use":"zazemi","note":""},"1.31":{"name":"","use":"komunikace","note":""},"2.01":{"name":"Schodiště a hala","use":"komunikace","note":""},"2.02":{"name":"Pokoj 7","use":"pokoj","note":""},"2.03":{"name":"","use":"komunikace","note":""},"2.04":{"name":"Pokoj 8","use":"pokoj","note":"awawdad\n"},"2.05":{"name":"Pokoj 9","use":"pokoj","note":""},"2.06":{"name":"Pokoj 10","use":"pokoj","note":""},"2.07":{"name":"","use":"komunikace","note":""},"2.08":{"name":"Pokoj 11","use":"pokoj","note":""},"2.09":{"name":"Pokoj 12","use":"pokoj","note":""},"2.10":{"name":"Pokoj 13","use":"pokoj","note":""},"2.11":{"name":"","use":"komunikace","note":""},"2.12":{"name":"Pokoj 3","use":"pokoj","note":""},"2.13":{"name":"WC","use":"hygiena","note":""},"2.14":{"name":"Pokoj 4","use":"pokoj","note":""},"2.15":{"name":"Denní místnost PSS","use":"zazemi","note":""},"2.16":{"name":"Pokoj 5","use":"pokoj","note":""},"2.17":{"name":"WC","use":"hygiena","note":""},"2.18":{"name":"Pokoj 6","use":"pokoj","note":""},"2.19":{"name":"Archiv","use":"sklad","note":""},"2.20":{"name":"WC zam. ženy","use":"hygiena","note":""},"2.21":{"name":"","use":"jine","note":""},"2.22":{"name":"WC zam. muži","use":"hygiena","note":""},"2.23":{"name":"Sklad","use":"sklad","note":""},"2.24":{"name":"Kuchyňka","use":"zazemi","note":""},"2.25":{"name":"","use":"jine","note":""},"2.26":{"name":"WC","use":"hygiena","note":""},"2.27":{"name":"","use":"jine","note":""},"3.01":{"name":"Schodiště a hala","use":"komunikace","note":""},"3.02":{"name":"Pokoj 14","use":"pokoj","note":""},"3.03":{"name":"","use":"jine","note":""},"3.04":{"name":"","use":"komunikace","note":""},"3.05":{"name":"Pokoj 15","use":"pokoj","note":""},"3.06":{"name":"Pokoj 16","use":"pokoj","note":""},"3.07":{"name":"Pokoj 17","use":"pokoj","note":""},"3.08":{"name":"","use":"komunikace","note":""},"3.09":{"name":"Pokoj 18","use":"pokoj","note":""},"3.10":{"name":"Pokoj 19","use":"pokoj","note":""},"3.11":{"name":"Pokoj 20","use":"pokoj","note":""},"3.12":{"name":"","use":"jine","note":""},"3.13":{"name":"WC","use":"hygiena","note":""},"3.14":{"name":"WC","use":"hygiena","note":""},"3.15":{"name":"WC","use":"hygiena","note":""},"3.16":{"name":"WC","use":"hygiena","note":""},"3.17":{"name":"","use":"jine","note":""},"3.18":{"name":"","use":"jine","note":""}},"items":{"1NP":[],"2NP":[{"id":"k9kuw2jer4","kind":"skrin","x":-9.422,"y":-2.75,"rot":270,"w":0.8,"l":0.62,"label":""}],"3NP":[]}}]}</script>
+<script id="app-js">(function () {
+'use strict';
+const GEO = JSON.parse(document.getElementById('geo').textContent);
+const EMBED = JSON.parse(document.getElementById('saved-state').textContent);
+let S = JSON.parse(JSON.stringify(EMBED));
+const FLOORS = GEO.floors.map(f => f.key);
+const FL = Object.fromEntries(GEO.floors.map(f => [f.key, f]));
+const ROOMS = {}; GEO.floors.forEach(f => f.rooms.forEach(r => { ROOMS[r.id] = Object.assign({ floor: f.key }, r); }));
+const FLOOR_LABEL = { '1NP': '1.NP', '2NP': '2.NP', '3NP': '3.NP' };
+const VIEWS = [
+  { k: '1NP', fk: '1NP', label: '1.NP' },
+  { k: '2NP-H', fk: '2NP', zone: 'stara', label: '2.NP hlavní budova' },
+  { k: '2NP-P', fk: '2NP', zone: 'pristavba', label: '2.NP přístavba' },
+  { k: '3NP', fk: '3NP', label: '3.NP' }
+];
+const VIEW = Object.fromEntries(VIEWS.map(v => [v.k, v]));
+const USES = [
+  ['pokoj', 'Pokoj klientů', '#f6f0e1'], ['kancelar', 'Kancelář', '#e1efd9'], ['zazemi', 'Zázemí personálu', '#e9e4f4'],
+  ['spolecne', 'Společné prostory', '#fbf7dc'], ['hygiena', 'Hygiena', '#e5eef3'], ['sklad', 'Sklad / archiv', '#efe9df'],
+  ['komunikace', 'Chodba / schodiště', '#ffffff'], ['jine', 'Jiné', '#f3f3f3']
+];
+const USE = Object.fromEntries(USES.map(u => [u[0], { name: u[1], fill: u[2] }]));
+const SEX = { Z: { fill: '#fae6fb', stroke: '#d63fbf', solid: '#ff33cf', name: 'žena' }, M: { fill: '#dce8fa', stroke: '#2f6fb5', solid: '#0b5cad', name: 'muž' }, '': { fill: '#eeeeee', stroke: '#7d7d7d', solid: '#7d7d7d', name: 'neurčeno' } };
+const ACC = '#e8710a';
+const SNAP = 0.05, BED_W = 1.0, BED_L = 2.1;
+const LS_DRAFT = 'oaza-planovac-luzek-draft', LS_UI = 'oaza-planovac-luzek-ui';
+
+// ---------- geometrie ----------
+function inPoly(x, y, pts) {
+  let c = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [x1, y1] = pts[i], [x2, y2] = pts[j];
+    if ((y1 > y) !== (y2 > y) && x < (x2 - x1) * (y - y1) / (y2 - y1 + 1e-12) + x1) c = !c;
+  }
+  return c;
+}
+function roomAt(fk, x, y) { return FL[fk].rooms.find(r => inPoly(x, y, r.pts)) || null; }
+function half(b) { return (b.rot % 180 === 0) ? [b.w / 2, b.l / 2] : [b.l / 2, b.w / 2]; }
+function bedBox(b) { const [hw, hh] = half(b); return [b.x - hw, b.y - hh, b.x + hw, b.y + hh]; }
+function bedRoom(fk, b) { return roomAt(fk, b.x, b.y); }
+function bedFits(fk, b) {
+  const r = bedRoom(fk, b); if (!r) return { room: null, ok: false };
+  const [hw, hh] = half(b), ins = 0.02;
+  for (const sx of [-1, 0, 1]) for (const sy of [-1, 0, 1]) if (!inPoly(b.x + sx * (hw - ins), b.y + sy * (hh - ins), r.pts)) return { room: r, ok: false };
+  return { room: r, ok: true };
+}
+function overlaps(a, b) { const A = bedBox(a), B = bedBox(b), t = 0.01; return A[0] < B[2] - t && B[0] < A[2] - t && A[1] < B[3] - t && B[1] < A[3] - t; }
+function freeAt(fk, b) { const f = bedFits(fk, b); return f.ok && !(S_objs(fk).some(o => o.id !== b.id && overlaps(b, o))); }
+const DOORS = Object.fromEntries(GEO.floors.map(f => [f.key, f.doors.map(d => {
+  const [hx, hy, jx, jy, lx, ly] = d, r = Math.hypot(jx - hx, jy - hy), tx = hx + lx * r, ty = hy + ly * r;
+  return { h: [hx, hy], u: [(jx - hx) / r, (jy - hy) / r], L: [lx, ly], r, box: [Math.min(hx, jx, tx), Math.min(hy, jy, ty), Math.max(hx, jx, tx), Math.max(hy, jy, ty)] };
+})]));
+function inDoor(fk, b) {
+  // průnik s výsečí, kterou opisuje dveřní křídlo (ne celý čtverec kolem); tolerance 8 cm kvůli přesnosti podkladů
+  const A = bedBox(b), t = 0.08;
+  return DOORS[fk].some(D => {
+    const B = D.box; if (!(A[0] < B[2] - t && B[0] < A[2] - t && A[1] < B[3] - t && B[1] < A[3] - t)) return false;
+    const x0 = Math.max(A[0], B[0]) + t, x1 = Math.min(A[2], B[2]) - t, y0 = Math.max(A[1], B[1]) + t, y1 = Math.min(A[3], B[3]) - t;
+    for (let x = x0; x <= x1 + 1e-9; x += 0.05) for (let y = y0; y <= y1 + 1e-9; y += 0.05) {
+      const px = x - D.h[0], py = y - D.h[1], a = px * D.u[0] + py * D.u[1], c = px * D.L[0] + py * D.L[1];
+      if (a > 0 && c > 0 && a * a + c * c < (D.r - t) * (D.r - t)) return true;
+    }
+    return false;
+  });
+}
+function S_beds(fk) { return scen().beds[fk] || []; }
+function S_items(fk) { const sc = scen(); return (sc.items && sc.items[fk]) || []; }
+function S_objs(fk) { return S_beds(fk).concat(S_items(fk)); }
+function itemsOf(sc, fk) { return (sc.items && sc.items[fk]) || []; }
+const SK_W = [40, 60, 80], SK_D = [42, 62];
+function boundsOfRects(rects, m) {
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  rects.forEach(w => { x0 = Math.min(x0, w[0]); y0 = Math.min(y0, w[1]); x1 = Math.max(x1, w[2]); y1 = Math.max(y1, w[3]); });
+  return { x: x0 - m, y: -y1 - m, w: x1 - x0 + 2 * m, h: y1 - y0 + 2 * m };
+}
+const BOUNDS = boundsOfRects([].concat(...GEO.floors.map(f => f.walls.concat(f.stairs))), 0.8);
+const VB = {};
+VIEWS.forEach(v => {
+  const f = FL[v.fk];
+  if (!v.zone) { VB[v.k] = boundsOfRects(f.walls.concat(f.stairs), 0.8); return; }
+  // hranice mezi přístavbou a hlavní budovou leží u schodiště (x ≈ −16 m)
+  const ws = f.walls.concat(f.stairs).filter(w => v.zone === 'pristavba' ? w[2] <= -15.9 : w[0] >= -16.9);
+  VB[v.k] = boundsOfRects(ws, 0.8);
+});
+function viewOfRoom(id) { const r = ROOMS[id]; if (r.floor !== '2NP') return r.floor; return r.zone === 'pristavba' ? '2NP-P' : '2NP-H'; }
+function viewOfBed(fk, b) { const r = bedRoom(fk, b); return r ? viewOfRoom(r.id) : (fk === '2NP' ? (b.x < -16 ? '2NP-P' : '2NP-H') : fk); }
+function segDist(px, py, ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy; let t = L ? ((px - ax) * dx + (py - ay) * dy) / L : 0; t = Math.max(0, Math.min(1, t)); return [Math.hypot(px - ax - t * dx, py - ay - t * dy), ax + t * dx, ay + t * dy]; }
+
+// ---------- stav UI ----------
+const ui = { page: 'overview', room: null, view: '2NP-H', sel: null, mode: 'select', vb: Object.assign({}, VB['2NP-H']), fitted: true, delArm: false, measure: null, dragging: false, needRender: false, k: 0.04 };
+(function loadUi() { try { const u = JSON.parse(localStorage.getItem(LS_UI) || 'null'); if (u) { if (u.active) S.active = u.active; if ('compare' in u) S.compare = u.compare; ui.ctx = !!u.ctx; if (VIEW[u.view]) { ui.view = u.view; ui.vb = Object.assign({}, VB[u.view]); } } } catch (e) { /* */ } })();
+function saveUi() { try { localStorage.setItem(LS_UI, JSON.stringify({ active: S.active, compare: S.compare, view: ui.view, ctx: !!ui.ctx })); } catch (e) { /* */ } }
+const undo = [], redo = [];
+const scen = () => S.scenarios.find(s => s.id === S.active) || S.scenarios[0];
+const scenById = id => S.scenarios.find(s => s.id === id) || null;
+function snapshot() { return JSON.stringify({ scenarios: S.scenarios, settings: S.settings }); }
+function restore(js) { const d = JSON.parse(js); S.scenarios = d.scenarios; S.settings = d.settings; if (!scenById(S.active)) S.active = S.scenarios[0].id; }
+function canEdit() {
+  if (sync.mode === 'connecting') { toast('Ještě načítám sdílená data, chvilku vydrž.'); return false; }
+  if (sync.readOnly) { toast('Tuhle stránku můžeš jen prohlížet.'); return false; }
+  return true;
+}
+function change(fn, opts) {
+  if (!canEdit()) { render(); return; }
+  undo.push(snapshot()); if (undo.length > 60) undo.shift(); redo.length = 0;
+  fn(); persist(); if (!(opts && opts.noRender)) render(); else renderStatus();
+}
+function doUndo() { if (!undo.length || !canEdit()) return; redo.push(snapshot()); restore(undo.pop()); fixSel(); persist(); render(); }
+function doRedo() { if (!redo.length || !canEdit()) return; undo.push(snapshot()); restore(redo.pop()); fixSel(); persist(); render(); }
+function fixSel() { if (ui.sel && ui.sel.type === 'bed' && !findBed(ui.sel.id)) ui.sel = null; }
+function findBed(id) {
+  const sc = scen();
+  for (const fk of FLOORS) {
+    const b = (sc.beds[fk] || []).find(b => b.id === id); if (b) return { fk, b, arr: 'beds' };
+    const it = itemsOf(sc, fk).find(b => b.id === id); if (it) return { fk, b: it, arr: 'items' };
+  }
+  return null;
+}
+function listOf(arr, fk) { const sc = scen(); if (!sc[arr]) sc[arr] = {}; if (!sc[arr][fk]) sc[arr][fk] = []; return sc[arr][fk]; }
+function roomMeta(sc, id) { return (sc.rooms && sc.rooms[id]) || { name: ROOMS[id].geoName || '', use: 'jine', note: '' }; }
+function uid(p) { return p + Date.now().toString(36).slice(-4) + Math.random().toString(36).slice(2, 7); }
+
+// ---------- sdílené ukládání (db) ----------
+const sync = { mode: 'connecting', removed: {}, recent: {}, reapplyT: null, db: null, readOnly: false, synced: {}, remote: { scenarios: null, beds: null, items: null, config: null }, fresh: { scenarios: false, beds: false }, timer: null, writing: false, again: false, err: '', loadTimer: null, slow: false };
+function cj(v) { // kanonický JSON se seřazenými klíči
+  if (Array.isArray(v)) return '[' + v.map(cj).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + cj(v[k])).join(',') + '}';
+  return JSON.stringify(v === undefined ? null : v);
+}
+function flat(st) {
+  const m = {};
+  st.scenarios.forEach((s, i) => {
+    m['scenarios/' + s.id] = { name: s.name, note: s.note || '', order: i, rooms: s.rooms || {} };
+    FLOORS.forEach(fk => (s.beds[fk] || []).forEach(b => { m['beds/' + b.id] = { sid: s.id, fk, x: b.x, y: b.y, rot: b.rot, w: b.w, l: b.l, sex: b.sex || '', hl: !!b.hl, label: b.label || '' }; }));
+    FLOORS.forEach(fk => itemsOf(s, fk).forEach(b => { m['items/' + b.id] = { sid: s.id, fk, kind: b.kind || 'skrin', x: b.x, y: b.y, rot: b.rot, w: b.w, l: b.l, label: b.label || '' }; }));
+  });
+  m['config/settings'] = st.settings;
+  return m;
+}
+function unflat(m) {
+  const scs = Object.keys(m).filter(p => p.startsWith('scenarios/')).map(p => { const d = m[p]; return { id: p.slice(10), name: d.name || 'Bez názvu', note: d.note || '', order: d.order || 0, rooms: d.rooms || {}, beds: { '1NP': [], '2NP': [], '3NP': [] }, items: { '1NP': [], '2NP': [], '3NP': [] } }; })
+    .sort((a, b) => (a.order - b.order) || (a.id < b.id ? -1 : 1));
+  const byId = Object.fromEntries(scs.map(s => [s.id, s]));
+  Object.keys(m).filter(p => p.startsWith('beds/')).sort().forEach(p => { const d = m[p], s = byId[d.sid]; if (!s || !s.beds[d.fk]) return; s.beds[d.fk].push({ id: p.slice(5), x: d.x, y: d.y, rot: d.rot, w: d.w, l: d.l, sex: d.sex || '', hl: !!d.hl, label: d.label || '' }); });
+  Object.keys(m).filter(p => p.startsWith('items/')).sort().forEach(p => { const d = m[p], s = byId[d.sid]; if (!s || !s.items[d.fk]) return; s.items[d.fk].push({ id: p.slice(6), kind: d.kind || 'skrin', x: d.x, y: d.y, rot: d.rot, w: d.w, l: d.l, label: d.label || '' }); });
+  scs.forEach(s => delete s.order);
+  return { scenarios: scs, settings: m['config/settings'] || S.settings };
+}
+function persist() {
+  if (sync.mode === 'db') { clearTimeout(sync.timer); sync.timer = setTimeout(flush, 450); renderStatus(); }
+  else if (sync.mode === 'local') { clearTimeout(sync.timer); sync.timer = setTimeout(() => { try { localStorage.setItem(LS_DRAFT, JSON.stringify({ scenarios: S.scenarios, settings: S.settings })); } catch (e) { /* */ } renderStatus(); }, 400); }
+  saveUi();
+}
+function dirtyCount() { if (sync.mode !== 'db') return 0; const L = flat(S); let n = 0; for (const p in L) if (sync.synced[p] !== cj(L[p])) n++; for (const p in sync.synced) if (!(p in L)) n++; return n; }
+async function flush() {
+  if (sync.mode !== 'db' || sync.readOnly) return;
+  if (sync.writing) { sync.again = true; return; }
+  sync.writing = true; renderStatus();
+  const L = flat(S), jobs = [];
+  for (const p in L) { const j = cj(L[p]); if (sync.synced[p] !== j) jobs.push({ p, j, del: false }); }
+  for (const p in sync.synced) if (!(p in L)) jobs.push({ p, del: true });
+  let failed = null;
+  const run = async job => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        if (job.del) { sync.recent[job.p] = Date.now(); await sync.db.doc(job.p).delete(); delete sync.synced[job.p]; }
+        else { sync.recent[job.p] = Date.now(); await sync.db.doc(job.p).set(JSON.parse(job.j)); sync.synced[job.p] = job.j; sync.recent[job.p] = Date.now(); }
+        return;
+      } catch (e) {
+        const c = e && e.code;
+        if (c === 'unavailable' && attempt === 0) { await new Promise(r => setTimeout(r, 400 + Math.random() * 600)); continue; }
+        failed = c || 'unknown'; return;
+      }
+    }
+  };
+  const queue = jobs.slice();
+  await Promise.all(Array.from({ length: Math.min(6, queue.length) }, async () => { while (queue.length && !failed) await run(queue.shift()); }));
+  sync.writing = false;
+  if (failed) {
+    if (failed === 'invalid_argument' || failed === 'not_granted') { sync.readOnly = true; sync.err = 'Tuhle stránku můžeš jen prohlížet, změny se neuloží.'; }
+    else if (failed === 'quota_exceeded') sync.err = 'Databáze stránky je plná, smaž nepotřebné varianty.';
+    else if (failed === 'revoked') { sync.readOnly = true; sync.err = 'Přístup ke sdíleným datům skončil.'; }
+    else sync.err = 'Změny se nepodařilo uložit, zkusím to znovu.';
+    if (!sync.readOnly && failed !== 'quota_exceeded') { clearTimeout(sync.timer); sync.timer = setTimeout(flush, 5000); }
+    render(); return;
+  }
+  sync.err = '';
+  if (sync.again) { sync.again = false; flush(); } else renderStatus();
+}
+function onRemote(coll, docs, meta) {
+  const prev = sync.remote[coll];
+  sync.remote[coll] = docs;
+  if (prev) for (const p in prev) if (!(p in docs)) sync.removed[p] = true;
+  for (const p in docs) delete sync.removed[p];
+  if (meta && !meta.fromCache && coll in sync.fresh) sync.fresh[coll] = true;
+  if (sync.remote.scenarios === null || sync.remote.beds === null || sync.remote.items === null) return;
+  if (sync.fresh.scenarios && sync.fresh.beds) { clearTimeout(sync.loadTimer); sync.slow = false; }
+  applyRemote(coll);
+}
+function remoteOf(coll) {
+  if (coll === 'config') return sync.remote.config ? { 'config/settings': sync.remote.config } : {};
+  return sync.remote[coll] || {};
+}
+function applyRemote(coll) {
+  if (ui.dragging) { sync.pendingApply = true; return; }
+  const remoteEmpty = !Object.keys(sync.remote.scenarios || {}).length;
+  if (sync.mode === 'connecting') {
+    if (sync.remote.scenarios === null || sync.remote.beds === null || sync.remote.items === null) return;
+    if (remoteEmpty) {
+      if (!(sync.fresh.scenarios && sync.fresh.beds)) return; // počkej na potvrzení, že je databáze opravdu prázdná
+      sync.mode = 'db'; sync.synced = {}; // první spuštění: zapíše výchozí stav ze stránky
+      if (!sync.readOnly) flush();
+      render(); return;
+    }
+    const R = Object.assign({}, remoteOf('scenarios'), remoteOf('beds'), remoteOf('items'), remoteOf('config'));
+    sync.mode = 'db'; sync.synced = {}; sync.removed = {};
+    for (const p in R) sync.synced[p] = cj(R[p]);
+    const d = unflat(R); S.scenarios = d.scenarios; S.settings = d.settings;
+    if (!scenById(S.active)) S.active = S.scenarios[0].id;
+    if (S.compare && !scenById(S.compare)) S.compare = '';
+    fixSel(); render(); return;
+  }
+  if (sync.mode !== 'db') return;
+  const colls = coll ? [coll] : ['scenarios', 'beds', 'items', 'config'];
+  const L = flat(S), M = Object.assign({}, L), now = Date.now(); let changed = false, deferred = false;
+  colls.forEach(c => {
+    const R = remoteOf(c);
+    for (const p in R) {
+      const j = cj(R[p]);
+      if (j === sync.synced[p]) continue;
+      const localDirty = (p in L) ? cj(L[p]) !== sync.synced[p] : sync.synced[p] !== undefined;
+      if (localDirty) { if (p in L && j === cj(L[p])) sync.synced[p] = j; continue; }
+      // čerstvě zapsaný dokument: starší snímek ze serveru ho nesmí vrátit zpět
+      if (sync.recent[p] && now - sync.recent[p] < 2500) { deferred = true; continue; }
+      if (!(p in L) || cj(L[p]) !== j) { M[p] = R[p]; changed = true; }
+      sync.synced[p] = j;
+    }
+  });
+  for (const p in sync.removed) {
+    const c = p.split('/')[0]; if (colls.indexOf(c) < 0) continue;
+    if (p in L && sync.synced[p] !== undefined && cj(L[p]) === sync.synced[p]) {
+      if (sync.recent[p] && now - sync.recent[p] < 2500) { deferred = true; continue; }
+      delete M[p]; changed = true;
+    }
+    if (!(p in L) || sync.synced[p] === undefined || cj(L[p]) === sync.synced[p]) { delete sync.synced[p]; delete sync.removed[p]; }
+  }
+  if (deferred) { clearTimeout(sync.reapplyT); sync.reapplyT = setTimeout(() => applyRemote(), 2600); }
+  if (!changed) { renderStatus(); return; }
+  const d = unflat(M); if (d.scenarios.length) S.scenarios = d.scenarios; S.settings = d.settings;
+  if (!scenById(S.active)) S.active = S.scenarios[0].id;
+  if (S.compare && !scenById(S.compare)) S.compare = '';
+  undo.length = 0; redo.length = 0; fixSel();
+  softRender();
+}
+function isTyping() { const a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest('#app'); }
+function softRender() { if (ui.dragging || isTyping()) { ui.needRender = true; renderStatus(); return; } render(); }
+document.addEventListener('focusout', () => setTimeout(() => { if (ui.needRender && !isTyping() && !ui.dragging) { ui.needRender = false; render(); } }, 0));
+async function connect() {
+  const C = window.claude;
+  let db = null, user = null;
+  try { [db, user] = await Promise.all([C.use('db'), C.use('user')]); } catch (e) { db = null; }
+  if (!db) { goLocal(); return; }
+  sync.db = db;
+  try { if (user && typeof user.can === 'function') { const w = await user.can('data.write'); if (w === false) sync.readOnly = true; } } catch (e) { /* */ }
+  sync.loadTimer = setTimeout(() => { sync.slow = true; renderStatus(); }, 10000);
+  const toMap = (prefix, snap) => { const m = {}; snap.docs.forEach(d => { if (d.exists) m[prefix + d.id] = JSON.parse(JSON.stringify(d.data())); }); return m; };
+  const onErr = e => { if (e && e.code === 'revoked') { sync.readOnly = true; sync.err = 'Přístup ke sdíleným datům skončil.'; } else { sync.err = 'Spojení se sdílenými daty se přerušilo. Obnov stránku.'; } render(); };
+  db.collection('scenarios').onSnapshot(s => onRemote('scenarios', toMap('scenarios/', s), s.metadata), onErr);
+  db.collection('beds').onSnapshot(s => onRemote('beds', toMap('beds/', s), s.metadata), onErr);
+  db.collection('items').onSnapshot(s => onRemote('items', toMap('items/', s), s.metadata), onErr);
+  db.doc('config/settings').onSnapshot(d => { sync.remote.config = d.exists ? JSON.parse(JSON.stringify(d.data())) : null; if (sync.remote.scenarios !== null && sync.remote.beds !== null && sync.remote.items !== null) applyRemote('config'); }, onErr);
+}
+function goLocal() {
+  sync.mode = 'local';
+  try { const d = JSON.parse(localStorage.getItem(LS_DRAFT) || 'null'); if (d && d.scenarios && d.scenarios.length) { S.scenarios = d.scenarios; S.settings = d.settings || S.settings; if (!scenById(S.active)) S.active = S.scenarios[0].id; } } catch (e) { /* */ }
+  render();
+}
+
+// ---------- výpočty ----------
+function analyse(sc) {
+  const res = { total: 0, sex: { Z: 0, M: 0, '': 0 }, hl: 0, zones: { '1NP': 0, '2NP': 0, '3NP': 0, pristavba: 0 }, rooms: {}, bad: [], perFloor: {} };
+  FLOORS.forEach(fk => {
+    const beds = sc.beds[fk] || []; res.perFloor[fk] = beds.length;
+    beds.forEach((b, i) => {
+      res.total++; res.sex[b.sex || '']++; if (b.hl) res.hl++;
+      const fit = bedFits(fk, b); let problem = null;
+      if (!fit.room) problem = 'mimo místnost'; else if (!fit.ok) problem = 'zasahuje do zdi';
+      for (let j = 0; j < beds.length; j++) if (j !== i && overlaps(b, beds[j])) { problem = (problem ? problem + ', ' : '') + 'překrývá jiné lůžko'; break; }
+      if (itemsOf(sc, fk).some(o => overlaps(b, o))) problem = (problem ? problem + ', ' : '') + 'překrývá skříň';
+      if (problem) res.bad.push({ fk, id: b.id, room: fit.room ? fit.room.id : null, problem });
+      const r = fit.room, z = r && r.zone === 'pristavba' ? 'pristavba' : fk; res.zones[z]++;
+      if (r) { const o = res.rooms[r.id] || (res.rooms[r.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); o.n++; if (b.sex === 'Z') o.Z++; else if (b.sex === 'M') o.M++; else o.U++; if (b.hl) o.hl++; }
+    });
+  });
+  FLOORS.forEach(fk => {
+    const its = itemsOf(sc, fk);
+    its.forEach((b, i) => {
+      const fit = bedFits(fk, b); let problem = null;
+      if (!fit.room) problem = 'mimo místnost'; else if (!fit.ok) problem = 'zasahuje do zdi';
+      if (its.some((o, j) => j !== i && overlaps(b, o))) problem = (problem ? problem + ', ' : '') + 'překrývá jinou skříň';
+      if (problem) res.bad.push({ fk, id: b.id, room: fit.room ? fit.room.id : null, problem, item: true });
+      if (fit.room) { const o = res.rooms[fit.room.id] || (res.rooms[fit.room.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); o.sk = (o.sk || 0) + 1; }
+    });
+  });
+  return res;
+}
+const viewCount = (a, k) => ({ '1NP': a.zones['1NP'], '2NP-H': a.zones['2NP'], '2NP-P': a.zones.pristavba, '3NP': a.zones['3NP'] })[k];
+function limitRows(a) {
+  const L = S.settings.limits;
+  return [['1NP', '1.NP', a.zones['1NP'], L['1NP'], '1NP'], ['2NP', '2.NP hlavní budova', a.zones['2NP'], L['2NP'], '2NP-H'], ['pristavba', '2.NP přístavba', a.zones.pristavba, L.pristavba, '2NP-P'], ['3NP', '3.NP', a.zones['3NP'], L['3NP'], '3NP']];
+}
+function checks(sc, a) {
+  const out = [], L = S.settings.limits;
+  limitRows(a).forEach(([k, name, v, lim, vk]) => { if (lim !== '' && lim != null && v > lim) out.push({ lvl: 'bad', text: `${name}: ${v} lůžek, limit ${lim}`, view: vk }); });
+  if (L.total && a.total > L.total) out.push({ lvl: 'bad', text: `Celkem ${a.total} lůžek, kapacita ${L.total}` });
+  a.bad.forEach(p => out.push({ lvl: 'bad', text: `${p.item ? 'Skříň' : 'Lůžko'} ${p.room ? 'v ' + p.room + ' ' : ''}${p.problem}`, bed: p.id }));
+  FLOORS.forEach(fk => (sc.beds[fk] || []).concat(itemsOf(sc, fk)).forEach(b => { if (inDoor(fk, b)) { const r = bedRoom(fk, b); out.push({ lvl: 'warn', text: `${b.kind ? 'Skříň' : 'Lůžko'} ${r ? 'v ' + r.id + ' ' : ''}zasahuje do rozletu dveří`, bed: b.id }); } }));
+  Object.keys(a.rooms).sort().forEach(id => {
+    if (!a.rooms[id].n) return;
+    const o = a.rooms[id], m = roomMeta(sc, id), nm = `${id} ${m.name || ''}`.trim();
+    if (m.use !== 'pokoj') out.push({ lvl: 'warn', text: `${nm}: ${o.n} ${plural(o.n)} v místnosti, která není pokoj klientů`, room: id });
+    if (S.settings.maxPerRoom && o.n > S.settings.maxPerRoom) out.push({ lvl: 'warn', text: `${nm}: ${o.n} lůžek, vlastní limit ${S.settings.maxPerRoom} na pokoj`, room: id });
+    if (S.settings.minArea && ROOMS[id].area / o.n < S.settings.minArea) out.push({ lvl: 'warn', text: `${nm}: ${fmt(ROOMS[id].area / o.n)} m² na lůžko, limit ${S.settings.minArea}`, room: id });
+    if (o.Z && o.M) out.push({ lvl: 'warn', text: `${nm}: smíšené obsazení (${o.Z} Ž, ${o.M} M)`, room: id });
+  });
+  if (L.total && a.total < L.total) out.push({ lvl: 'info', text: `Do kapacity ${L.total} chybí ${L.total - a.total} ${plural(L.total - a.total)}` });
+  return out;
+}
+function plural(n) { return n === 1 ? 'lůžko' : (n >= 2 && n <= 4 ? 'lůžka' : 'lůžek'); }
+function fmt(v, d) { return (Math.round(v * 10 ** (d == null ? 1 : d)) / 10 ** (d == null ? 1 : d)).toLocaleString('cs-CZ', { minimumFractionDigits: d == null ? 1 : d, maximumFractionDigits: d == null ? 1 : d }); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+// ---------- přichytávání ----------
+function snapTol() { const svg = document.getElementById('plan'); if (!svg) return 0.2; const rc = svg.getBoundingClientRect(); const k = Math.max(ui.vb.w / rc.width, ui.vb.h / rc.height); return Math.max(0.12, 14 * k); }
+function snapBed(fk, b, rawX, rawY) {
+  const [hw, hh] = half(b), tol = snapTol();
+  const room = roomAt(fk, rawX, rawY);
+  const xs = [], ys = [];
+  if (room) {
+    const P = room.pts;
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i], c = P[(i + 1) % P.length];
+      if (Math.abs(a[0] - c[0]) < 1e-3) { const y0 = Math.min(a[1], c[1]), y1 = Math.max(a[1], c[1]); if (rawY + hh > y0 + 0.05 && rawY - hh < y1 - 0.05) { xs.push({ v: a[0] + hw, g: [a[0], y0, a[0], y1] }, { v: a[0] - hw, g: [a[0], y0, a[0], y1] }); } }
+      else if (Math.abs(a[1] - c[1]) < 1e-3) { const x0 = Math.min(a[0], c[0]), x1 = Math.max(a[0], c[0]); if (rawX + hw > x0 + 0.05 && rawX - hw < x1 - 0.05) { ys.push({ v: a[1] + hh, g: [x0, a[1], x1, a[1]] }, { v: a[1] - hh, g: [x0, a[1], x1, a[1]] }); } }
+    }
+  }
+  S_objs(fk).forEach(o => {
+    if (o.id === b.id) return;
+    const [ox0, oy0, ox1, oy1] = bedBox(o);
+    const yOver = rawY - hh < oy1 && rawY + hh > oy0, xOver = rawX - hw < ox1 && rawX + hw > ox0;
+    const near = Math.abs(o.x - rawX) < 4 && Math.abs(o.y - rawY) < 4;
+    if (!near) return;
+    if (yOver) { xs.push({ v: ox0 - hw, g: [ox0, oy0, ox0, oy1] }, { v: ox1 + hw, g: [ox1, oy0, ox1, oy1] }); }
+    if (xOver) { ys.push({ v: oy0 - hh, g: [ox0, oy0, ox1, oy0] }, { v: oy1 + hh, g: [ox0, oy1, ox1, oy1] }); }
+    xs.push({ v: ox0 + hw, g: [ox0, Math.min(oy0, rawY - hh), ox0, Math.max(oy1, rawY + hh)] }, { v: ox1 - hw, g: [ox1, Math.min(oy0, rawY - hh), ox1, Math.max(oy1, rawY + hh)] });
+    ys.push({ v: oy0 + hh, g: [Math.min(ox0, rawX - hw), oy0, Math.max(ox1, rawX + hw), oy0] }, { v: oy1 - hh, g: [Math.min(ox0, rawX - hw), oy1, Math.max(ox1, rawX + hw), oy1] });
+  });
+  const pick = (arr, raw) => { let best = null; arr.forEach(c => { const d = Math.abs(c.v - raw); if (d <= tol && (!best || d < best.d - 1e-6)) best = { d, c }; }); return best ? best.c : null; };
+  const sx = pick(xs, rawX), sy = pick(ys, rawY);
+  // mřížka 5 cm vychází z rohu místnosti
+  let gx = 0, gy = 0;
+  if (room) { gx = Math.min(...room.pts.map(p => p[0])) - hw; gy = Math.max(...room.pts.map(p => p[1])) + hh; }
+  const grid = (raw, o) => o + Math.round((raw - o) / SNAP) * SNAP;
+  return {
+    x: +(sx ? sx.v : grid(rawX, gx)).toFixed(3),
+    y: +(sy ? sy.v : grid(rawY, gy)).toFixed(3),
+    guides: [sx && sx.g, sy && sy.g].filter(Boolean)
+  };
+}
+function findSpot(fk, room, px, py, tmpl, rots) {
+  let best = null;
+  const xs = room.pts.map(p => p[0]), ys = room.pts.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  for (const rot of (rots || [0, 90])) for (let x = x0; x <= x1; x += 0.1) for (let y = y0; y <= y1; y += 0.1) {
+    const b = Object.assign({}, tmpl, { x: Math.round(x / SNAP) * SNAP, y: Math.round(y / SNAP) * SNAP, rot });
+    const f = bedFits(fk, b); if (!f.ok || f.room.id !== room.id) continue;
+    if (S_objs(fk).some(o => o.id !== b.id && overlaps(b, o)) || inDoor(fk, b)) continue;
+    const d = Math.hypot(b.x - px, b.y - py) + (rot === (rots ? rots[0] : 0) ? 0 : 0.01);
+    if (!best || d < best.d) best = { d, b };
+  }
+  if (!best) return null;
+  const b = best.b, s = snapBed(fk, b, b.x, b.y), sb = Object.assign({}, b, { x: s.x, y: s.y });
+  return freeAt(fk, sb) && !inDoor(fk, sb) ? sb : b;
+}
+function addBed(fk, room, px, py) {
+  if (!canEdit()) return;
+  const sexes = S_beds(fk).filter(b => { const r = bedRoom(fk, b); return r && r.id === room.id; }).map(b => b.sex);
+  const sex = sexes.length && sexes.every(s => s === sexes[0]) ? sexes[0] : '';
+  const tmpl = { id: uid('b'), w: BED_W, l: BED_L, rot: 0, sex, hl: false, label: '' };
+  let b = findSpot(fk, room, px, py, tmpl);
+  if (!b) { b = Object.assign(tmpl, { x: Math.round(px / SNAP) * SNAP, y: Math.round(py / SNAP) * SNAP }); toast('V místnosti už není volné místo, lůžko je položené přes jiné.'); }
+  change(() => { (scen().beds[fk] = scen().beds[fk] || []).push(b); ui.sel = { type: 'bed', id: b.id }; });
+}
+
+function backGap(fk, room, b) {
+  // vzdálenost zad skříně ke zdi ve směru zad (rot 0: záda na sever)
+  const dir = { 0: [0, 1], 90: [1, 0], 180: [0, -1], 270: [-1, 0] }[b.rot];
+  const [x0, y0, x1, y1] = bedBox(b), P = room.pts;
+  const sx = dir[0] > 0 ? x1 : dir[0] < 0 ? x0 : b.x, sy = dir[1] > 0 ? y1 : dir[1] < 0 ? y0 : b.y;
+  let best = 1e9;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], c = P[(i + 1) % P.length];
+    if (dir[0] && Math.abs(a[0] - c[0]) < 1e-3 && sy >= Math.min(a[1], c[1]) && sy <= Math.max(a[1], c[1])) { const d = (a[0] - sx) * dir[0]; if (d > -0.01 && d < best) best = d; }
+    if (dir[1] && Math.abs(a[1] - c[1]) < 1e-3 && sx >= Math.min(a[0], c[0]) && sx <= Math.max(a[0], c[0])) { const d = (a[1] - sy) * dir[1]; if (d > -0.01 && d < best) best = d; }
+  }
+  return best;
+}
+function findSpotWall(fk, room, tmpl, px, py, rots) {
+  // skříň: zády ke zdi, co nejblíž zadanému bodu
+  let best = null;
+  const xs = room.pts.map(p => p[0]), ys = room.pts.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  for (const rot of (rots || [0, 90, 180, 270])) {
+    const [hw, hh] = rot % 180 === 0 ? [tmpl.w / 2, tmpl.l / 2] : [tmpl.l / 2, tmpl.w / 2];
+    // kandidáti přiražení ke stěnám: pro každou hranu rovnoběžnou se zády
+    const cand = [];
+    for (let i = 0; i < room.pts.length; i++) {
+      const a = room.pts[i], c = room.pts[(i + 1) % room.pts.length];
+      if ((rot === 0 || rot === 180) && Math.abs(a[1] - c[1]) < 1e-3) { const y = rot === 0 ? a[1] - hh : a[1] + hh; for (let x = Math.min(a[0], c[0]) + hw; x <= Math.max(a[0], c[0]) - hw + 1e-6; x += 0.05) cand.push([x, y]); }
+      if ((rot === 90 || rot === 270) && Math.abs(a[0] - c[0]) < 1e-3) { const x = rot === 90 ? a[0] - hw : a[0] + hw; for (let y = Math.min(a[1], c[1]) + hh; y <= Math.max(a[1], c[1]) - hh + 1e-6; y += 0.05) cand.push([x, y]); }
+    }
+    cand.forEach(([x, y]) => {
+      if (x < x0 || x > x1 || y < y0 || y > y1) return;
+      const b = Object.assign({}, tmpl, { x: +x.toFixed(3), y: +y.toFixed(3), rot });
+      const f = bedFits(fk, b); if (!f.ok || f.room.id !== room.id) return;
+      if (S_objs(fk).some(o => o.id !== b.id && overlaps(b, o)) || inDoor(fk, b)) return;
+      if (backGap(fk, room, b) > 0.02) return;
+      const d = Math.hypot(b.x - px, b.y - py);
+      if (!best || d < best.d) best = { d, b };
+    });
+  }
+  return best ? best.b : null;
+}
+function addItem(fk, room, wcm, dcm) {
+  if (!canEdit()) return;
+  const tmpl = { id: uid('k'), kind: 'skrin', w: wcm / 100, l: dcm / 100, rot: 0, label: '' };
+  let b = findSpotWall(fk, room, tmpl, room.ip[0], room.ip[1]);
+  if (!b) { b = findSpot(fk, room, room.ip[0], room.ip[1], tmpl, [0, 90, 180, 270]); }
+  if (!b) { b = Object.assign(tmpl, { x: room.ip[0], y: room.ip[1] }); toast('V místnosti už není volné místo, skříň je položená doprostřed.'); }
+  change(() => { listOf('items', fk).push(b); ui.sel = { type: 'bed', id: b.id }; });
+}
+
+// ---------- měření ----------
+function measureSnap(fk, x, y) {
+  const tol = snapTol(); let best = null;
+  const consider = (px, py, d, kind) => { if (d <= tol && (!best || d < best.d - (kind === 'v' ? 0.02 : 0))) best = { x: px, y: py, d, kind }; };
+  const pts = [], segs = [];
+  FL[fk].rooms.filter(r => !(ui.page === 'room' && !ui.ctx) || r.id === ui.room).forEach(r => { r.pts.forEach((p, i) => { pts.push(p); segs.push([p, r.pts[(i + 1) % r.pts.length]]); }); });
+  S_objs(fk).forEach(b => { const [x0, y0, x1, y1] = bedBox(b); const c = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; c.forEach((p, i) => { pts.push(p); segs.push([p, c[(i + 1) % 4]]); }); });
+  pts.forEach(p => consider(p[0], p[1], Math.hypot(p[0] - x, p[1] - y) - 0.03, 'v'));
+  if (!best) segs.forEach(([a, c]) => { const [d, qx, qy] = segDist(x, y, a[0], a[1], c[0], c[1]); consider(qx, qy, d, 'e'); });
+  return best ? { x: best.x, y: best.y, snapped: best.kind } : { x, y, snapped: null };
+}
+function measureSvg() {
+  const m = ui.measure; if (!m || !m.a || m.page !== ui.page || m.room !== ui.room || m.view !== ui.view) return '';
+  const b = m.b || m.live; let s = '';
+  const dot = (p, k) => `<circle cx="${p.x}" cy="${-p.y}" r="${px(4)}" fill="${k ? ACC : '#fff'}" stroke="${ACC}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+  if (b) {
+    const d = Math.hypot(b.x - m.a.x, b.y - m.a.y), dx = Math.abs(b.x - m.a.x), dy = Math.abs(b.y - m.a.y);
+    const mx = (m.a.x + b.x) / 2, my = -(m.a.y + b.y) / 2;
+    s += `<line x1="${m.a.x}" y1="${-m.a.y}" x2="${b.x}" y2="${-b.y}" stroke="${ACC}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+    if (dx > 0.05 && dy > 0.05) s += `<path d="M${m.a.x},${-m.a.y}L${b.x},${-m.a.y}L${b.x},${-b.y}" fill="none" stroke="${ACC}" stroke-width="1" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/>`;
+    const txt = `${fmt(d * 100, 0)} cm` + (dx > 0.05 && dy > 0.05 ? `  (${fmt(dx * 100, 0)} × ${fmt(dy * 100, 0)})` : '');
+    s += `<text x="${mx}" y="${my - px(7)}" text-anchor="middle" font-size="${px(13)}" font-weight="700" font-family="IBM Plex Sans, sans-serif" fill="${ACC}" stroke="#fff" stroke-width="${px(3)}" paint-order="stroke">${txt}</text>`;
+    s += dot(b, b.snapped);
+  }
+  return s + dot(m.a, m.a.snapped);
+}
+
+// ---------- měřítko zobrazení ----------
+function wrapSize() {
+  const w = document.getElementById('wrap');
+  if (w && w.clientWidth) return [w.clientWidth, w.clientHeight];
+  const W = window.innerWidth >= 980 ? window.innerWidth - 32 - 356 - 2 : window.innerWidth - 34;
+  return [Math.max(300, W), Math.max(420, Math.min(880, window.innerHeight * 0.66))];
+}
+function calcK(vb) { const [W, H] = wrapSize(); return Math.max(vb.w / W, vb.h / H); }
+const px = n => n * ui.k;
+function roomVB(id) {
+  // pokoj se vejde do levé části výřezu, vpravo nahoře zůstane místo pro orientační plánek
+  const r = ROOMS[id], xs = r.pts.map(p => p[0]), ys = r.pts.map(p => p[1]), m = 0.7;
+  const x0 = Math.min(...xs) - m, x1 = Math.max(...xs) + m, y0 = -Math.max(...ys) - m, y1 = -Math.min(...ys) + m;
+  const [W, H] = wrapSize(), side = 0;
+  const k = Math.max((x1 - x0) / (W - side), (y1 - y0) / (H - 40));
+  const w = W * k, h = H * k, usedW = (W - side) * k;
+  return { x: x0 - (usedW - (x1 - x0)) / 2, y: y0 - (h - (y1 - y0)) / 2 - 10 * k, w, h };
+}
+function curFloor() { return ui.page === 'room' ? ROOMS[ui.room].floor : VIEW[ui.view].fk; }
+function fitVB() { return ui.page === 'room' ? roomVB(ui.room) : Object.assign({}, VB[ui.view]); }
+
+// ---------- vykreslení výkresu ----------
+const staticCache = {};
+function staticLayer(fk) {
+  if (staticCache[fk]) return staticCache[fk];
+  const f = FL[fk]; let s = '';
+  s += `<g fill="#cfd3d4">` + f.walls.map(w => `<rect x="${w[0]}" y="${-w[3]}" width="${(w[2] - w[0]).toFixed(3)}" height="${(w[3] - w[1]).toFixed(3)}"/>`).join('') + '</g>';
+  s += `<g fill="#fff" stroke="#333" stroke-width="1" vector-effect="non-scaling-stroke">` + f.windows.map(o => {
+    const r = `<rect vector-effect="non-scaling-stroke" x="${o[0]}" y="${-o[3]}" width="${(o[2] - o[0]).toFixed(3)}" height="${(o[3] - o[1]).toFixed(3)}"/>`;
+    const l = o[4] ? `<line vector-effect="non-scaling-stroke" x1="${o[0]}" y1="${-(o[1] + o[3]) / 2}" x2="${o[2]}" y2="${-(o[1] + o[3]) / 2}"/>` : `<line vector-effect="non-scaling-stroke" x1="${(o[0] + o[2]) / 2}" y1="${-o[1]}" x2="${(o[0] + o[2]) / 2}" y2="${-o[3]}"/>`;
+    return r + l;
+  }).join('') + '</g>';
+  s += `<g fill="none" stroke="#333">` + f.doors.map(d => {
+    const [hx, hy, jx, jy, lx, ly] = d, r = Math.hypot(jx - hx, jy - hy), tx = hx + lx * r, ty = hy + ly * r;
+    const sweep = ((jx - hx) * ly - (jy - hy) * lx) > 0 ? 0 : 1;
+    return `<line vector-effect="non-scaling-stroke" stroke-width="1.2" x1="${hx}" y1="${-hy}" x2="${tx}" y2="${-ty}"/><path vector-effect="non-scaling-stroke" stroke-width=".8" stroke-dasharray="4 3" d="M${jx},${-jy} A${r},${r} 0 0 ${sweep} ${tx},${-ty}"/>`;
+  }).join('') + '</g>';
+  s += `<g fill="none" stroke="#555">` + f.stairs.map(st => {
+    const [x0, y0, x1, y1, t] = st; let o = `<rect vector-effect="non-scaling-stroke" x="${x0}" y="${-y1}" width="${x1 - x0}" height="${y1 - y0}"/>`;
+    if (t === 'h') { const n = Math.max(2, Math.round((y1 - y0) / 0.28)); for (let i = 1; i < n; i++) { const y = y0 + (y1 - y0) * i / n; o += `<line vector-effect="non-scaling-stroke" stroke-width=".7" x1="${x0}" y1="${-y}" x2="${x1}" y2="${-y}"/>`; } }
+    else { const n = Math.max(2, Math.round((x1 - x0) / 0.28)); for (let i = 1; i < n; i++) { const x = x0 + (x1 - x0) * i / n; o += `<line vector-effect="non-scaling-stroke" stroke-width=".7" x1="${x}" y1="${-y0}" x2="${x}" y2="${-y1}"/>`; } }
+    return o;
+  }).join('');
+  if (f.lift) { const [x0, y0, x1, y1] = f.lift; s += `<rect vector-effect="non-scaling-stroke" x="${x0}" y="${-y1}" width="${x1 - x0}" height="${y1 - y0}"/><line vector-effect="non-scaling-stroke" x1="${x0}" y1="${-y0}" x2="${x1}" y2="${-y1}"/><line vector-effect="non-scaling-stroke" x1="${x0}" y1="${-y1}" x2="${x1}" y2="${-y0}"/>`; }
+  s += '</g>';
+  s += `<g stroke="#666">` + f.rails.map(r => `<line vector-effect="non-scaling-stroke" stroke-width="1.2" x1="${r[0]}" y1="${-r[1]}" x2="${r[2]}" y2="${-r[3]}"/>`).join('') + '</g>';
+  return (staticCache[fk] = s);
+}
+function notesLayer(fk) { return FL[fk].notes.map(n => `<text x="${n[1]}" y="${-n[2]}" font-size="${px(10)}" fill="#888" font-style="italic" text-anchor="middle" font-family="IBM Plex Sans, sans-serif">${esc(n[0])}</text>`).join(''); }
+function bedInner(b, opts) {
+  const sx = SEX[b.sex || ''], fill = b.hl ? sx.solid : sx.fill, bad = opts && opts.bad, sel = opts && opts.sel;
+  const w = b.w, l = b.l;
+  // výběr se kreslí uvnitř obrysu lůžka, nic nepřesahuje jeho skutečný rozměr
+  let g = `<rect x="${-w / 2}" y="${-l / 2}" width="${w}" height="${l}" fill="${fill}" stroke="none"/>`;
+  g += `<rect x="${-w / 2 + 0.12}" y="${-l / 2 + 0.08}" width="${w - 0.24}" height="0.26" fill="#fff" stroke="${sx.stroke}" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+  const spx = sel ? 3 : bad ? 2 : 1.2, sw = Math.min(px(spx), 0.08);
+  g += `<rect x="${-w / 2 + sw / 2}" y="${-l / 2 + sw / 2}" width="${w - sw}" height="${l - sw}" fill="none" stroke="${sel ? ACC : bad ? '#b3261e' : sx.stroke}" stroke-width="${sw}"${bad && !sel ? ` stroke-dasharray="${px(6)} ${px(4)}"` : ''}/>`;
+  return g;
+}
+function itemInner(b, opts) {
+  const sel = opts && opts.sel, bad = opts && opts.bad, w = b.w, l = b.l;
+  // skříň: záda nahoře (u zdi), dvířka dole; úhlopříčka jako běžná značka skříně
+  let g = `<rect x="${-w / 2}" y="${-l / 2}" width="${w}" height="${l}" fill="#f3e3d3" stroke="none"/>`;
+  g += `<line x1="${-w / 2}" y1="${-l / 2}" x2="${w / 2}" y2="${l / 2}" stroke="#a0522d" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+  g += `<line x1="${-w / 2}" y1="${l / 2 - Math.min(0.05, l * 0.12)}" x2="${w / 2}" y2="${l / 2 - Math.min(0.05, l * 0.12)}" stroke="#a0522d" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+  const spx = sel ? 3 : bad ? 2 : 1.2, sw = Math.min(px(spx), 0.06);
+  g += `<rect x="${-w / 2 + sw / 2}" y="${-l / 2 + sw / 2}" width="${w - sw}" height="${l - sw}" fill="none" stroke="${sel ? ACC : bad ? '#b3261e' : '#a0522d'}" stroke-width="${sw}"${bad && !sel ? ` stroke-dasharray="${px(6)} ${px(4)}"` : ''}/>`;
+  return g;
+}
+function objInner(b, opts) { return b.kind ? itemInner(b, opts) : bedInner(b, opts); }
+function itemSvg(b, opts) {
+  let g = `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${itemInner(b, opts)}</g>`;
+  const fs = px(9.5), txt = b.label || `${Math.round(b.w * 100)}×${Math.round(b.l * 100)}`;
+  if (Math.min(b.w, b.l) / ui.k > 26) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + fs * 0.35}" font-size="${fs}" text-anchor="middle" fill="#7a3d18" style="paint-order:stroke;stroke:#f3e3d3;stroke-width:${px(3)}">${esc(txt)}</text>`;
+  return g;
+}
+function bedSvg(b, opts) {
+  if (b.kind) return itemSvg(b, opts);
+  let g = `<g class="bed" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${bedInner(b, opts)}</g>`;
+  if (b.label) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + Math.min(px(11), 0.22) * 0.35}" font-size="${Math.min(px(11), 0.22)}" text-anchor="middle"${b.hl ? ' fill="#fff"' : ''}>${esc(b.label)}</text>`;
+  return g;
+}
+const spotCache = {};
+function labelSpot(r, beds) {
+  const mine = beds.filter(b => inPoly(b.x, b.y, r.pts)).map(bedBox);
+  const key = r.id + '|' + mine.map(m => m.map(v => v.toFixed(2)).join(',')).join(';');
+  if (spotCache[key]) return spotCache[key];
+  const xs = r.pts.map(p => p[0]), ys = r.pts.map(p => p[1]);
+  const score = (x, y) => {
+    if (!inPoly(x, y, r.pts)) return -1;
+    let d = 1e9;
+    for (let i = 0, j = r.pts.length - 1; i < r.pts.length; j = i++) d = Math.min(d, segDist(x, y, r.pts[i][0], r.pts[i][1], r.pts[j][0], r.pts[j][1])[0]);
+    for (const m of mine) { const dx = Math.max(m[0] - x, 0, x - m[2]), dy = Math.max(m[1] - y, 0, y - m[3]); d = Math.min(d, Math.hypot(dx, dy)); }
+    return d;
+  };
+  let best = null;
+  for (let x = Math.min(...xs); x <= Math.max(...xs); x += 0.1) for (let y = Math.min(...ys); y <= Math.max(...ys); y += 0.1) {
+    const s = Math.min(score(x, y), score(x - 0.55, y) + 0.15, score(x + 0.55, y) + 0.15);
+    if (!best || s > best[0]) best = [s, x, y];
+  }
+  return (spotCache[key] = best ? [best[1], best[2]] : r.ip);
+}
+function fitText(n, maxW, fs) { const max = Math.max(4, Math.floor(maxW / (fs * 0.56))); return n.length > max ? n.slice(0, max - 1) + '…' : n; }
+function roomLabels(sc, a, ca, r, fk) {
+  const m = roomMeta(sc, r.id), o = a.rooms[r.id], n = o ? o.n : 0;
+  const fsId = px(9.5), fsName = px(11.5), fsChip = px(10.5);
+  const maxW = r.rad * 2.6;
+  if (maxW < fsName * 3) return `<text class="r-id" font-size="${fsId}" x="${r.ip[0]}" y="${-r.ip[1] + fsId * 0.35}" text-anchor="middle">${r.id}</text>`;
+  const sp = n ? labelSpot(r, (sc.beds[fk] || []).concat(itemsOf(sc, fk))) : r.ip, tx = sp[0], ty = -sp[1];
+  let s = `<text class="r-id" font-size="${fsId}" x="${tx}" y="${ty - fsName * 1.05}" text-anchor="middle">${r.id}</text>`;
+  if (m.name) s += `<text class="r-name" font-size="${fsName}" x="${tx}" y="${ty + fsName * 0.1}" text-anchor="middle">${esc(fitText(m.name, maxW, fsName))}</text>`;
+  if (n || m.use === 'pokoj') s += `<text class="r-chip" font-size="${fsChip}" x="${tx}" y="${ty + fsName * 1.25}" text-anchor="middle">${n} ${plural(n)}${n ? ' · ' + fmt(r.area / n) + ' m²/l' : ''}</text>`;
+  if (ca) { const cn = ca.rooms[r.id] ? ca.rooms[r.id].n : 0, d = n - cn; if (d) s += `<text class="r-delta" font-size="${fsName}" x="${tx}" y="${ty + fsName * 2.4}" text-anchor="middle" fill="${d > 0 ? '#2f7d4f' : '#b3261e'}">${d > 0 ? '+' : '−'}${Math.abs(d)}</text>`; }
+  return s;
+}
+function polyPath(pts) { return 'M' + pts.map(p => p[0] + ',' + -p[1]).join('L') + 'Z'; }
+function edgeDims(r) {
+  // délky stěn místnosti v cm, popisek uvnitř u stěny
+  const P = r.pts, fs = px(10); let s = '';
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], c = P[(i + 1) % P.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]);
+    if (L < 0.35 || L / ui.k < 40) continue;
+    const mx = (a[0] + c[0]) / 2, my = (a[1] + c[1]) / 2, ux = (c[0] - a[0]) / L, uy = (c[1] - a[1]) / L;
+    let nx = -uy, ny = ux; const off = fs * 0.9;
+    if (!inPoly(mx + nx * off, my + ny * off, P)) { nx = -nx; ny = -ny; }
+    const tx = mx + nx * off, ty = my + ny * off, vert = Math.abs(ux) < 0.5;
+    s += `<text class="e-dim" font-size="${fs}" x="${tx}" y="${-ty}" text-anchor="middle" dominant-baseline="middle"${vert ? ` transform="rotate(-90 ${tx} ${-ty})"` : ''}>${Math.round(L * 100)}</text>`;
+  }
+  return s;
+}
+function bedGaps(fk, b, room) {
+  // vzdálenost od hran lůžka ke stěnám a k jiným lůžkům ve čtyřech směrech
+  if (!room) return '';
+  const [x0, y0, x1, y1] = bedBox(b), cx = b.x, cy = b.y, P = room.pts, out = [];
+  const others = S_objs(fk).filter(o => o.id !== b.id).map(bedBox);
+  const dirs = [[1, 0, x1, cy], [-1, 0, x0, cy], [0, 1, cx, y1], [0, -1, cx, y0]];
+  dirs.forEach(([dx, dy, sx, sy]) => {
+    let best = 1e9;
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i], c = P[(i + 1) % P.length];
+      if (dx && Math.abs(a[0] - c[0]) < 1e-3 && sy >= Math.min(a[1], c[1]) - 1e-3 && sy <= Math.max(a[1], c[1]) + 1e-3) { const d = (a[0] - sx) * dx; if (d > -0.005 && d < best) best = d; }
+      if (dy && Math.abs(a[1] - c[1]) < 1e-3 && sx >= Math.min(a[0], c[0]) - 1e-3 && sx <= Math.max(a[0], c[0]) + 1e-3) { const d = (a[1] - sy) * dy; if (d > -0.005 && d < best) best = d; }
+    }
+    others.forEach(o => {
+      if (dx && sy > o[1] && sy < o[3]) { const d = ((dx > 0 ? o[0] : o[2]) - sx) * dx; if (d > -0.005 && d < best) best = d; }
+      if (dy && sx > o[0] && sx < o[2]) { const d = ((dy > 0 ? o[1] : o[3]) - sy) * dy; if (d > -0.005 && d < best) best = d; }
+    });
+    if (best < 50) out.push([sx, sy, sx + dx * best, sy + dy * best, best, !!dx]);
+  });
+  const fs = px(11), t = px(4);
+  return out.map(([ax, ay, bx, by, d, hor]) => {
+    const mx = (ax + bx) / 2, my = (ay + by) / 2;
+    let s = `<line x1="${ax}" y1="${-ay}" x2="${bx}" y2="${-by}"/>`;
+    s += hor ? `<line x1="${ax}" y1="${-ay - t}" x2="${ax}" y2="${-ay + t}"/><line x1="${bx}" y1="${-by - t}" x2="${bx}" y2="${-by + t}"/>` : `<line x1="${ax - t}" y1="${-ay}" x2="${ax + t}" y2="${-ay}"/><line x1="${bx - t}" y1="${-by}" x2="${bx + t}" y2="${-by}"/>`;
+    const lbl = `${Math.round(d * 100)}`;
+    s += `<text font-size="${fs}" x="${hor ? mx : mx + fs * 0.4}" y="${hor ? -my - fs * 0.45 : -my + fs * 0.35}" text-anchor="${hor ? 'middle' : 'start'}">${lbl}</text>`;
+    return s;
+  }).join('');
+}
+function renderPlan(opts) {
+  opts = opts || {};
+  const page = opts.page || ui.page, roomId = page === 'room' ? (opts.room || ui.room) : null;
+  const vb = opts.vb || ui.vb, fk = roomId ? ROOMS[roomId].floor : VIEW[opts.view || ui.view].fk;
+  const v = roomId ? null : VIEW[opts.view || ui.view];
+  const sc = scen(), f = FL[fk], a = analyse(sc), exp = !!opts.export;
+  const cmp = S.compare && S.compare !== sc.id ? scenById(S.compare) : null, ca = cmp ? analyse(cmp) : null;
+  const badIds = new Set(a.bad.map(p => p.id));
+  const R = roomId ? ROOMS[roomId] : null;
+  const isSel = b => !exp && ui.sel && ui.sel.type === 'bed' && ui.sel.id === b.id;
+  const inRoom = b => R && inPoly(b.x, b.y, R.pts);
+  let s = `<svg id="${exp ? 'x' : 'plan'}" style="--halo:${px(3)};--hair:${px(1.2)}" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg" class="${roomId ? 'detail' : 'ov'}" role="img" aria-label="${roomId ? 'Pokoj ' + roomId : 'Půdorys ' + v.label}">`;
+  s += `<rect x="${BOUNDS.x - 50}" y="${BOUNDS.y - 50}" width="${BOUNDS.w + 100}" height="${BOUNDS.h + 100}" fill="#fff"/>`;
+  if (!roomId) s += '<g>' + f.rooms.map(r => `<path class="r-fill" data-room="${r.id}" d="${polyPath(r.pts)}" fill="${(USE[roomMeta(sc, r.id).use] || USE.jine).fill}"${v && v.zone && r.zone !== v.zone ? ' opacity=".45"' : ''}/>`).join('') + '</g>';
+  if (roomId) {
+    const ctx = !!ui.ctx;
+    const xs = R.pts.map(p => p[0]), ys = R.pts.map(p => p[1]), ox = Math.min(...xs), oy = -Math.max(...ys);
+    const showMinor = 0.05 / ui.k >= 4;
+    s += `<defs><clipPath id="rc"><path d="${polyPath(R.pts)}"/></clipPath>
+      <mask id="rm" maskUnits="userSpaceOnUse" x="${BOUNDS.x - 50}" y="${BOUNDS.y - 50}" width="${BOUNDS.w + 100}" height="${BOUNDS.h + 100}"><path d="${polyPath(R.pts)}" fill="#fff" stroke="#fff" stroke-width="1.1" stroke-linejoin="miter"/></mask>
+      <pattern id="g5" x="${ox}" y="${oy}" width=".05" height=".05" patternUnits="userSpaceOnUse"><path d="M.05 0H0V.05" fill="none" stroke="#1f5f73" stroke-opacity=".10" stroke-width="${px(0.6)}"/></pattern>
+      <pattern id="g50" x="${ox}" y="${oy}" width=".5" height=".5" patternUnits="userSpaceOnUse"><path d="M.5 0H0V.5" fill="none" stroke="#1f5f73" stroke-opacity=".22" stroke-width="${px(0.8)}"/></pattern>
+      <pattern id="g100" x="${ox}" y="${oy}" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="#1f5f73" stroke-opacity=".38" stroke-width="${px(1)}"/></pattern></defs>`;
+    if (ctx) {
+      // okolí: ostatní místnosti s lůžky a popisky ztlumené
+      s += '<g>' + f.rooms.map(r => `<path class="r-fill" data-room="${r.id}" d="${polyPath(r.pts)}" fill="${(USE[roomMeta(sc, r.id).use] || USE.jine).fill}"/>`).join('') + '</g>';
+      s += '<g>' + itemsOf(sc, fk).concat(sc.beds[fk] || []).filter(b => !inRoom(b)).map(b => bedSvg(b, { bad: badIds.has(b.id) })).join('') + '</g>';
+      s += f.rooms.filter(r => r.id !== roomId).map(r => roomLabels(sc, a, ca, r, fk)).join('');
+      s += `<path d="M${BOUNDS.x - 50},${BOUNDS.y - 50}h${BOUNDS.w + 100}v${BOUNDS.h + 100}h${-(BOUNDS.w + 100)}Z ${polyPath(R.pts)}" fill="#fff" fill-opacity=".62" fill-rule="evenodd" style="pointer-events:none"/>`;
+      s += staticLayer(fk);
+    } else {
+      // samostatný pokoj: jen jeho podlaha a zdi kolem, zbytek podlaží skrytý
+      s += `<path class="r-fill" data-room="${roomId}" d="${polyPath(R.pts)}" fill="${(USE[roomMeta(sc, roomId).use] || USE.jine).fill}"/>`;
+      s += `<g mask="url(#rm)" style="pointer-events:none">${staticLayer(fk)}</g>`;
+    }
+    s += `<g clip-path="url(#rc)" style="pointer-events:none">${showMinor ? `<rect x="${ox}" y="${oy}" width="${Math.max(...xs) - ox}" height="${Math.max(...ys) - Math.min(...ys)}" fill="url(#g5)"/>` : ''}<rect x="${ox}" y="${oy}" width="${Math.max(...xs) - ox}" height="${Math.max(...ys) - Math.min(...ys)}" fill="url(#g50)"/><rect x="${ox}" y="${oy}" width="${Math.max(...xs) - ox}" height="${Math.max(...ys) - Math.min(...ys)}" fill="url(#g100)"/></g>`;
+    s += `<g style="pointer-events:none">${edgeDims(R)}</g>`;
+    s += '<g id="beds">' + itemsOf(sc, fk).concat(sc.beds[fk] || []).filter(inRoom).map(b => bedSvg(b, { bad: badIds.has(b.id), sel: isSel(b) })).join('') + '</g>';
+    const selB = ui.sel && ui.sel.type === 'bed' ? findBed(ui.sel.id) : null;
+    s += `<g id="gaps" class="gaps">${selB && selB.fk === fk && inRoom(selB.b) ? bedGaps(fk, selB.b, R) : ''}</g>`;
+  } else {
+    s += staticLayer(fk) + notesLayer(fk);
+    s += '<g id="beds">' + itemsOf(sc, fk).concat(sc.beds[fk] || []).map(b => bedSvg(b, { bad: badIds.has(b.id) })).join('') + '</g>';
+    s += f.rooms.map(r => roomLabels(sc, a, ca, r, fk)).join('');
+  }
+  s += `<g id="guides" fill="none" stroke="${ACC}" stroke-width="1.5" stroke-dasharray="6 4"></g>`;
+  if (!exp) s += `<g id="measure">${measureSvg()}</g>`;
+  return s + '</svg>';
+}
+function miniMap() {
+  const R = ROOMS[ui.room], fk = R.floor, f = FL[fk], b = boundsOfRects(f.walls, 0.4), sc = scen(), a = analyse(sc);
+  let s = `<svg viewBox="${b.x} ${b.y} ${b.w} ${b.h}" xmlns="http://www.w3.org/2000/svg" aria-label="Orientační plán ${FLOOR_LABEL[fk]}">`;
+  s += f.rooms.map(r => { const m = roomMeta(sc, r.id), cur = r.id === R.id, n = a.rooms[r.id] ? a.rooms[r.id].n : 0; return `<path data-goto="${r.id}" d="${polyPath(r.pts)}" fill="${cur ? ACC : n ? '#cfe0f5' : (m.use === 'pokoj' ? '#f0e8d4' : '#f3f4f4')}"><title>${r.id} ${esc(m.name)}${n ? ' · ' + n + ' ' + plural(n) : ''}</title></path>`; }).join('');
+  s += `<g fill="#9aa3a6" style="pointer-events:none">` + f.walls.map(w => `<rect x="${w[0]}" y="${-w[3]}" width="${(w[2] - w[0]).toFixed(3)}" height="${(w[3] - w[1]).toFixed(3)}"/>`).join('') + '</g>';
+  return s + '</svg>';
+}
+function niceScale() {
+  const opts = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10]; let L = opts[0];
+  opts.forEach(o => { if (o / ui.k <= 150) L = o; });
+  return { L, w: L / ui.k, txt: L < 1 ? Math.round(L * 100) + ' cm' : L + ' m' };
+}
+function overlayHtml() {
+  const sb = niceScale();
+  const title = ui.page === 'room' ? `${ui.room} ${esc(roomMeta(scen(), ui.room).name)}` : VIEW[ui.view].label;
+  return `<div class="ov-title">${title}</div><div class="ov-scale"><div class="bar" style="width:${sb.w.toFixed(1)}px"></div><span>${sb.txt}</span></div>`;
+}
+function updateOverlay() { const o = document.getElementById('ovl'); if (o) o.innerHTML = overlayHtml(); }
+
+// ---------- UI ----------
+const $ = sel => document.querySelector(sel);
+function statusHtml() {
+  if (sync.err) return `<span class="status err" title="${esc(sync.err)}"><i></i>Chyba ukládání</span>`;
+  if (sync.mode === 'connecting') return `<span class="status" title="${sync.slow ? 'Sdílená data se zatím nedaří načíst.' : 'Načítám sdílená data.'}"><i></i>Načítám…</span>`;
+  if (sync.mode === 'local') return '<span class="status dirty" title="Sdílené ukládání tu není k dispozici. Změny se drží jen v tomto prohlížeči, přenést je jde přes Kopírovat data."><i></i>Jen lokálně</span>';
+  if (sync.readOnly) return '<span class="status" title="Změny se neukládají."><i></i>Jen pro čtení</span>';
+  if (sync.writing || dirtyCount()) return '<span class="status busy" title="Ukládám změny pro všechny."><i></i>Ukládám…</span>';
+  return '<span class="status ok" title="Všechny změny jsou uložené a vidí je i ostatní."><i></i>Uloženo</span>';
+}
+function renderStatus() { const el = document.getElementById('stat'); if (el) el.innerHTML = statusHtml(); }
+function roomNavList() {
+  const sc = scen(), a = analyse(sc);
+  return Object.keys(ROOMS).filter(id => roomMeta(sc, id).use === 'pokoj' || (a.rooms[id] && a.rooms[id].n)).sort();
+}
+function render() {
+  ui.needRender = false;
+  if (ui.page === 'room' && !ROOMS[ui.room]) ui.page = 'overview';
+  ui.k = calcK(ui.vb);
+  const sc = scen(), a = analyse(sc), ch = checks(sc, a);
+  const cmpOpts = ['<option value="">nic</option>'].concat(S.scenarios.filter(s => s.id !== sc.id).map(s => `<option value="${s.id}"${S.compare === s.id ? ' selected' : ''}>${esc(s.name)}</option>`)).join('');
+  let toolbar, hint;
+  if (ui.page === 'room') {
+    const list = roomNavList(), i = list.indexOf(ui.room);
+    const prev = i > 0 ? list[i - 1] : (i === -1 ? list[0] : null), next = i >= 0 && i < list.length - 1 ? list[i + 1] : null;
+    const groups = VIEWS.map(v => `<optgroup label="${v.label}">${Object.keys(ROOMS).filter(id => viewOfRoom(id) === v.k && (roomMeta(sc, id).name || (a.rooms[id] && a.rooms[id].n))).sort().map(id => `<option value="${id}"${id === ui.room ? ' selected' : ''}>${id} ${esc(roomMeta(sc, id).name)}</option>`).join('')}</optgroup>`).join('');
+    toolbar = `<div class="group"><button id="goOv">← Přehled</button><button id="rPrev"${prev ? ` data-open="${prev}"` : ' disabled'} aria-label="Předchozí pokoj">‹</button><select id="roomSel" aria-label="Místnost">${groups}</select><button id="rNext"${next ? ` data-open="${next}"` : ' disabled'} aria-label="Další pokoj">›</button></div>
+      <div class="group"><button id="rAdd2">Přidat lůžko</button><select id="addSk" aria-label="Přidat skříň"><option value="">Přidat skříň…</option>${SK_D.map(d => SK_W.map(w => `<option value="${w}x${d}">skříň ${w} × ${d} cm</option>`).join('')).join('')}</select><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="ctxT" class="${ui.ctx ? 'on' : ''}" title="Zobrazí i sousední místnosti">Okolí</button></div>
+      <div class="group"><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pokoj</button></div>`;
+    hint = ui.mode === 'measure' ? 'Klikni na první a druhý bod. Body se chytají rohů a hran zdí i lůžek, s Alt bez chytání. Esc měření zruší.' : 'Lůžko nebo skříň táhni myší, přichytí se ke zdi, k jiným předmětům a k mřížce 5 cm (s Alt volně po 1 cm). R otočí, Delete smaže, šipky posunou o 5 cm. Čísla u stěn jsou délky v cm, u vybraného lůžka vzdálenosti ke stěnám.';
+  } else {
+    toolbar = `<div class="group" role="tablist" aria-label="Část budovy">${VIEWS.map(v => `<button class="floor-tab${ui.view === v.k ? ' on' : ''}" data-view="${v.k}" role="tab" aria-selected="${ui.view === v.k}">${v.label}<b>${viewCount(a, v.k)}</b></button>`).join('')}</div>
+      <div class="group"><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pohled</button></div>`;
+    hint = ui.mode === 'measure' ? 'Klikni na první a druhý bod. Body se chytají rohů a hran zdí i lůžek, s Alt bez chytání. Esc měření zruší.' : 'Klikni na místnost a otevře se její detail s mřížkou, kde jde rozmisťovat lůžka. Kolečko přibližuje, tažením posuneš výkres.';
+  }
+  let h = `<header class="top">
+    <h1>Rozmístění lůžek<small>Oáza klidu · 1.–3.NP</small></h1>
+    <div class="scen">
+      <span class="pair"><label for="scSel">Varianta</label>
+      <select id="scSel">${S.scenarios.map(s => `<option value="${s.id}"${s.id === sc.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}</select></span>
+      <span class="pair"><button id="scNew" title="Vytvoří kopii aktuální varianty">Nová varianta</button>
+      <button id="scDel" class="danger"${S.scenarios.length < 2 ? ' disabled' : ''}>${ui.delArm ? 'Opravdu smazat?' : 'Smazat'}</button></span>
+      <span class="pair"><label for="cmpSel">Porovnat s</label>
+      <select id="cmpSel">${cmpOpts}</select></span>
+    </div>
+    <span class="spacer"></span>
+    <div class="savebox"><span id="stat">${statusHtml()}</span><button id="undo" title="Zpět (Ctrl+Z)"${undo.length ? '' : ' disabled'}>Zpět</button><button id="redo" title="Znovu (Ctrl+Shift+Z)"${redo.length ? '' : ' disabled'}>Znovu</button></div>
+  </header>
+  <main class="grid"><section class="plan">
+    <div class="toolbar">${toolbar}</div>
+    <div class="hint toolhint">${hint}</div>
+    <div class="svgwrap${ui.mode === 'measure' ? ' adding' : ''}${ui.page === 'overview' ? ' is-ov' : ''}" id="wrap">${renderPlan()}<div id="ovl" class="ovl">${overlayHtml()}</div></div>
+    <div class="legend">
+      <span><i style="background:${SEX.Z.fill};border-color:${SEX.Z.stroke}"></i>žena</span>
+      <span><i style="background:${SEX.M.fill};border-color:${SEX.M.stroke}"></i>muž</span>
+      <span><i style="background:${SEX[''].fill};border-color:${SEX[''].stroke}"></i>neurčeno</span>
+      <span><i style="background:${SEX.Z.solid};border-color:${SEX.Z.solid}"></i><i style="background:${SEX.M.solid};border-color:${SEX.M.solid}"></i>zvýrazněné</span>
+      <span><i style="background:#f3e3d3;border-color:#a0522d"></i>skříň</span>
+      <span><i style="background:#fff;border-color:${ACC};border-width:2.5px"></i>vybrané</span>
+      <span><i style="background:#fff;border-color:#b3261e;border-style:dashed"></i>kolize</span>
+      ${USES.filter(u => u[0] !== 'komunikace' && u[0] !== 'jine').map(u => `<span><i style="background:${u[2]};border-color:#c9cccc"></i>${u[1]}</span>`).join('')}
+    </div>
+  </section>
+  <aside>${ui.page === 'room' ? detailAside(sc, a, ch) : summaryCard(sc, a, ch) + scenCard(sc)}</aside></main>
+  ${ui.page === 'room' ? '' : tableCard(sc, a)}`;
+  document.getElementById('app').innerHTML = h;
+  bind();
+}
+function summaryCard(sc, a, ch) {
+  const L = S.settings.limits;
+  const rows = limitRows(a).map(([k, name, v, lim, vk]) => {
+    const pct = lim ? Math.min(100, v / lim * 100) : 0, cls = lim && v > lim ? 'over' : lim && v === lim ? 'full' : '';
+    return `<div class="lim ${cls}" data-goview="${vk}"><span>${name}</span><span class="v tab-num">${v} / ${lim === '' || lim == null ? '–' : lim}</span><div class="bar"><div style="width:${lim ? pct : 0}%"></div></div></div>`;
+  }).join('');
+  ui._checks = ch;
+  const chk = ch.length ? ch.map((c, i) => `<li class="${c.lvl}" data-chk="${i}">${esc(c.text)}</li>`).join('') : '<li class="okmsg">Bez nalezených problémů.</li>';
+  const ro = sync.readOnly ? ' disabled' : '';
+  return `<div class="card"><h2>Souhrn<span>${esc(sc.name)}</span></h2>
+    <div class="big">${a.total}<small> / ${L.total || '–'} lůžek</small></div>
+    <div class="sexrow"><span>Ženy ${a.sex.Z}</span><span>Muži ${a.sex.M}</span>${a.sex[''] ? `<span>Neurčeno ${a.sex['']}</span>` : ''}${a.hl ? `<span>Zvýrazněná ${a.hl}</span>` : ''}</div>
+    <div class="limits">${rows}</div>
+    <h2 style="margin-top:12px">Kontroly<span>${ch.filter(c => c.lvl !== 'info').length}</span></h2>
+    <ul class="checks">${chk}</ul>
+    <details class="settings"><summary>Limity a pravidla kontrol</summary>
+      <div class="sgrid">
+        <label for="l1">Lůžek v 1.NP</label><input id="l1" type="number" min="0" data-lim="1NP" value="${L['1NP']}"${ro}>
+        <label for="l2">Lůžek ve 2.NP hlavní budova</label><input id="l2" type="number" min="0" data-lim="2NP" value="${L['2NP']}"${ro}>
+        <label for="lp">Lůžek ve 2.NP přístavba</label><input id="lp" type="number" min="0" data-lim="pristavba" value="${L.pristavba}"${ro}>
+        <label for="l3">Lůžek ve 3.NP</label><input id="l3" type="number" min="0" data-lim="3NP" value="${L['3NP']}"${ro}>
+        <label for="lt">Kapacita celkem</label><input id="lt" type="number" min="0" data-lim="total" value="${L.total}"${ro}>
+        <label for="lmax">Max. lůžek na pokoj (0 = nehlídat)</label><input id="lmax" type="number" min="0" data-set="maxPerRoom" value="${S.settings.maxPerRoom}"${ro}>
+        <label for="lmin">Min. m² na lůžko (0 = nehlídat)</label><input id="lmin" type="number" min="0" step="0.5" data-set="minArea" value="${S.settings.minArea}"${ro}>
+      </div>
+      <p class="hint">Výchozí hodnoty: 19 lůžek na podlaží staré budovy podle PBŘ 2006, 12 v přístavbě podle cílového stavu, kapacita 44. Limity platí pro všechny varianty.</p>
+    </details>
+  </div>`;
+}
+function detailAside(sc, a, ch) {
+  const r = ROOMS[ui.room], vk = viewOfRoom(r.id), lim = limitRows(a).find(x => x[4] === vk), L = S.settings.limits;
+  const mine = ch.map((c, i) => [c, i]).filter(([c]) => c.room === r.id || (c.bed && (() => { const f = findBed(c.bed); const br = f && bedRoom(f.fk, f.b); return br && br.id === r.id; })()));
+  ui._checks = ch;
+  const over = (v, l) => l !== '' && l != null && v > l;
+  const strip = `<div class="card compact"><div class="minisum">
+      <span class="${over(a.total, L.total) ? 'bad' : ''}"><b>${a.total}</b> / ${L.total || '–'} lůžek celkem</span>
+      <span class="${over(lim[2], lim[3]) ? 'bad' : ''}">${lim[1]} <b>${lim[2]}</b> / ${lim[3] === '' || lim[3] == null ? '–' : lim[3]}</span>
+    </div>${mine.length ? `<ul class="checks">${mine.map(([c, i]) => `<li class="${c.lvl}" data-chk="${i}">${esc(c.text)}</li>`).join('')}</ul>` : ''}</div>`;
+  const mm = `<div class="card compact minimap"><h2>${FLOOR_LABEL[r.floor]}<span>klikni na místnost pro přechod</span></h2>${miniMap()}</div>`;
+  return mm + bedCard(sc) + roomCard(sc, a) + strip;
+}
+function roomCard(sc, a) {
+  const ro = sync.readOnly ? ' disabled' : '';
+  const r = ROOMS[ui.room], m = roomMeta(sc, r.id), o = a.rooms[r.id] || { n: 0, Z: 0, M: 0, U: 0 };
+  return `<div class="card compact"><h2>Místnost ${r.id}<span>${VIEW[viewOfRoom(r.id)].label}</span></h2>
+    <div class="two"><div class="field"><label for="rName">Název</label><input id="rName" type="text" value="${esc(m.name)}"${ro}></div>
+    <div class="field"><label for="rUse">Účel</label><select id="rUse"${ro}>${USES.map(u => `<option value="${u[0]}"${m.use === u[0] ? ' selected' : ''}>${u[1]}</option>`).join('')}</select></div></div>
+    <div class="stats"><span><b>${fmt(r.area)}</b> m²</span><span><b>${o.n}</b> ${plural(o.n)}${o.n ? ` (Ž ${o.Z}, M ${o.M}${o.U ? ', ? ' + o.U : ''})` : ''}</span>${o.n ? `<span><b>${fmt(r.area / o.n)}</b> m²/lůžko</span>` : ''}${o.sk ? `<span><b>${o.sk}</b> ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}</span>` : ''}</div>
+    <details class="note"${m.note ? ' open' : ''}><summary>Poznámka${m.note ? '' : ' (žádná)'}</summary><textarea id="rNote"${ro}>${esc(m.note)}</textarea></details>
+    ${!ui.sel ? '<p class="hint">Klikni na lůžko a jeho vlastnosti se ukážou nahoře.</p>' : ''}
+    ${o.n ? `<div class="row"><button id="rClear" class="danger small"${ro}>Odebrat všechna lůžka</button></div>` : ''}
+  </div>`;
+}
+function bedCard(sc) {
+  if (!ui.sel || ui.sel.type !== 'bed') return '';
+  const f = findBed(ui.sel.id); if (!f) return '';
+  if (f.b.kind) return itemCard(sc, f);
+  const ro = sync.readOnly ? ' disabled' : '';
+  const b = f.b, fit = bedFits(f.fk, b);
+  const targets = roomNavList().filter(id => id !== (fit.room && fit.room.id));
+  return `<div class="card compact selcard"><h2>Vybrané lůžko<span>${Math.round(b.l * 100)} × ${Math.round(b.w * 100)} cm</span></h2>
+    <div class="seg full">${['Z', 'M', ''].map(k => `<button data-sex="${k}" class="${(b.sex || '') === k ? 'on' : ''}"${ro}>${k === 'Z' ? 'Žena' : k === 'M' ? 'Muž' : 'Neurčeno'}</button>`).join('')}</div>
+    <div class="two"><div class="field"><label for="bLbl">Popisek</label><input id="bLbl" type="text" maxlength="12" value="${esc(b.label)}" placeholder="např. iniciály"${ro}></div>
+    <label class="chk"><input type="checkbox" id="bHl"${b.hl ? ' checked' : ''}${ro}> Zvýraznit</label></div>
+    <div class="row"><button id="bRot"${ro}>Otočit</button><button id="bDup"${ro}>Duplikovat</button><button id="bDel" class="danger"${ro}>Smazat</button></div>
+    ${fit.ok ? '' : '<p class="hint" style="color:var(--bad);margin:6px 0 0">Lůžko se do místnosti nevejde, posuň ho nebo otoč.</p>'}
+    <details class="more"><summary>Rozměr a přesun</summary>
+      <div class="row field"><label for="bL">Délka</label><input id="bL" type="number" min="150" max="240" step="5" value="${Math.round(b.l * 100)}" style="width:70px"${ro}><label for="bW">Šířka</label><input id="bW" type="number" min="60" max="160" step="5" value="${Math.round(b.w * 100)}" style="width:70px"${ro}><span class="hint">cm</span></div>
+      <div class="field"><label for="bMove">Přesunout do jiné místnosti</label><select id="bMove"${ro}><option value="">vyber místnost…</option>${targets.map(id => `<option value="${id}">${id} ${esc(roomMeta(sc, id).name)}</option>`).join('')}</select></div>
+    </details>
+  </div>`;
+}
+function itemCard(sc, f) {
+  const ro = sync.readOnly ? ' disabled' : '';
+  const b = f.b, fit = bedFits(f.fk, b), wcm = Math.round(b.w * 100), dcm = Math.round(b.l * 100);
+  const targets = roomNavList().filter(id => id !== (fit.room && fit.room.id));
+  return `<div class="card compact selcard"><h2>Vybraná skříň<span>${wcm} × ${dcm} cm</span></h2>
+    <div class="field"><label>Šířka</label><div class="seg full">${SK_W.map(w => `<button data-skw="${w}" class="${wcm === w ? 'on' : ''}"${ro}>${w} cm</button>`).join('')}</div></div>
+    <div class="field"><label>Hloubka</label><div class="seg full">${SK_D.map(d => `<button data-skd="${d}" class="${dcm === d ? 'on' : ''}"${ro}>${d} cm</button>`).join('')}</div></div>
+    <div class="field"><label for="bLbl">Popisek</label><input id="bLbl" type="text" maxlength="12" value="${esc(b.label)}" placeholder="např. jméno klienta"${ro}></div>
+    <div class="row"><button id="bRot"${ro}>Otočit</button><button id="bDup"${ro}>Duplikovat</button><button id="bDel" class="danger"${ro}>Smazat</button></div>
+    ${fit.ok ? '' : '<p class="hint" style="color:var(--bad);margin:6px 0 0">Skříň se do místnosti nevejde, posuň ji nebo otoč.</p>'}
+    <details class="more"><summary>Přesun</summary>
+      <div class="field"><label for="bMove">Přesunout do jiné místnosti</label><select id="bMove"${ro}><option value="">vyber místnost…</option>${targets.map(id => `<option value="${id}">${id} ${esc(roomMeta(sc, id).name)}</option>`).join('')}</select></div>
+    </details>
+    <p class="hint">Záda skříně jsou na straně bez dvířek (silnější čára je čelo).</p>
+  </div>`;
+}
+function scenCard(sc) {
+  const ro = sync.readOnly ? ' disabled' : '';
+  return `<div class="card"><h2>Varianta</h2>
+    <div class="field"><label for="scName">Název varianty</label><input id="scName" type="text" value="${esc(sc.name)}"${ro}></div>
+    <div class="field"><label for="scNote">Popis</label><textarea id="scNote"${ro}>${esc(sc.note || '')}</textarea></div>
+    <div class="row"><button id="dCopy">Kopírovat data</button><button id="dPaste"${ro}>Vložit data</button>${dlNs ? '<button id="dSvg">Stáhnout výkres (SVG)</button>' : ''}</div>
+  </div>`;
+}
+function tableCard(sc, a) {
+  const cmp = S.compare && S.compare !== sc.id ? scenById(S.compare) : null, ca = cmp ? analyse(cmp) : null;
+  const ids = Object.keys(ROOMS).filter(id => (a.rooms[id] && a.rooms[id].n) || (ca && ca.rooms[id] && ca.rooms[id].n) || roomMeta(sc, id).use === 'pokoj').sort();
+  const tot = { n: 0, Z: 0, M: 0, d: 0 };
+  const rows = ids.map(id => {
+    const r = ROOMS[id], m = roomMeta(sc, id), o = a.rooms[id] || { n: 0, Z: 0, M: 0 };
+    const cn = ca ? (ca.rooms[id] ? ca.rooms[id].n : 0) : null, d = cn == null ? null : o.n - cn;
+    tot.n += o.n; tot.Z += o.Z; tot.M += o.M; if (d) tot.d += d;
+    const warn = m.use !== 'pokoj' && o.n ? ' <span class="pill warn">není pokoj</span>' : '';
+    return `<tr data-room="${id}" class="${ui.page === 'room' && ui.room === id ? 'sel' : ''}"><td>${VIEW[viewOfRoom(id)].label}</td><td class="tab-num">${id}</td><td>${esc(m.name)}${warn}</td><td>${(USE[m.use] || USE.jine).name}</td>
+      <td class="n">${fmt(r.area)}</td><td class="n">${o.n}</td><td class="n">${o.Z}</td><td class="n">${o.M}</td><td class="n">${o.n ? fmt(r.area / o.n) : '–'}</td>
+      ${ca ? `<td class="n ${d > 0 ? 'd-plus' : d < 0 ? 'd-minus' : ''}">${d ? (d > 0 ? '+' : '−') + Math.abs(d) : ''}</td>` : ''}</tr>`;
+  }).join('');
+  return `<section class="tablecard"><header><h2>Pokoje a lůžka${ca ? ` <span class="hint">změna proti variantě ${esc(cmp.name)}</span>` : ''}</h2><button id="tCopy">Kopírovat tabulku</button></header>
+    <div class="tablewrap"><table><thead><tr><th>Část budovy</th><th>Č.</th><th>Název</th><th>Účel</th><th class="n">m²</th><th class="n">Lůžka</th><th class="n">Ž</th><th class="n">M</th><th class="n">m²/lůžko</th>${ca ? '<th class="n">Změna</th>' : ''}</tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td colspan="5">Celkem</td><td class="n">${tot.n}</td><td class="n">${tot.Z}</td><td class="n">${tot.M}</td><td></td>${ca ? `<td class="n">${tot.d ? (tot.d > 0 ? '+' : '−') + Math.abs(tot.d) : ''}</td>` : ''}</tr></tfoot></table></div></section>`;
+}
+
+// ---------- navigace ----------
+function openRoom(id, selBed) {
+  if (!ROOMS[id]) return;
+  ui.page = 'room'; ui.room = id; ui.view = viewOfRoom(id); ui.vb = roomVB(id); ui.fitted = true; ui.measure = null;
+  ui.sel = selBed ? { type: 'bed', id: selBed } : null;
+  setHash('pokoj-' + id.replace('.', '-')); saveUi(); render();
+}
+function openOverview(view) {
+  ui.page = 'overview'; ui.room = null; ui.sel = null; ui.measure = null;
+  if (view && VIEW[view]) ui.view = view;
+  ui.vb = Object.assign({}, VB[ui.view]); ui.fitted = true;
+  setHash('prehled-' + ui.view.toLowerCase()); saveUi(); render();
+}
+function setHash(h) { try { if (location.hash.slice(1) !== h) history.replaceState(null, '', '#' + h); } catch (e) { /* */ } }
+function routeFromHash() {
+  const h = (location.hash || '').slice(1);
+  let m = h.match(/^pokoj-(\d)-(\d\d)$/);
+  if (m && ROOMS[m[1] + '.' + m[2]]) { const id = m[1] + '.' + m[2]; ui.page = 'room'; ui.room = id; ui.view = viewOfRoom(id); ui.vb = roomVB(id); return; }
+  m = h.match(/^prehled-(.+)$/);
+  const v = m && VIEWS.find(x => x.k.toLowerCase() === m[1]);
+  if (v) { ui.page = 'overview'; ui.view = v.k; ui.vb = Object.assign({}, VB[v.k]); }
+}
+window.addEventListener('hashchange', () => { routeFromHash(); render(); });
+
+function bind() {
+  const on = (sel, ev, fn) => { const el = $(sel); if (el) el.addEventListener(ev, fn); };
+  on('#scSel', 'change', e => { S.active = e.target.value; if (S.compare === S.active) S.compare = ''; ui.sel = null; saveUi(); render(); });
+  on('#cmpSel', 'change', e => { S.compare = e.target.value; saveUi(); render(); });
+  on('#scNew', 'click', () => change(() => {
+    const c = JSON.parse(JSON.stringify(scen())); c.id = uid('s'); c.name = 'Varianta ' + (S.scenarios.length + 1); c.note = '';
+    FLOORS.forEach(fk => (c.beds[fk] || []).forEach(b => b.id = uid('b')));
+    FLOORS.forEach(fk => ((c.items || {})[fk] || []).forEach(b => b.id = uid('k')));
+    S.compare = S.active; S.scenarios.push(c); S.active = c.id; ui.sel = null;
+    setTimeout(() => { const el = $('#scName'); if (el) { el.focus(); el.select(); } }, 0);
+  }));
+  on('#scDel', 'click', () => {
+    if (!ui.delArm) { ui.delArm = true; render(); setTimeout(() => { if (ui.delArm) { ui.delArm = false; render(); } }, 4000); return; }
+    ui.delArm = false;
+    change(() => { S.scenarios = S.scenarios.filter(s => s.id !== S.active); S.active = S.scenarios[0].id; if (!scenById(S.compare) || S.compare === S.active) S.compare = ''; ui.sel = null; });
+  });
+  on('#undo', 'click', doUndo); on('#redo', 'click', doRedo);
+  document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => openOverview(b.dataset.view)));
+  document.querySelectorAll('[data-goview]').forEach(b => b.addEventListener('click', () => openOverview(b.dataset.goview)));
+  on('#goOv', 'click', () => openOverview());
+  document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => openRoom(b.dataset.open)));
+  on('#roomSel', 'change', e => openRoom(e.target.value));
+  document.querySelectorAll('.minimap [data-goto]').forEach(p => p.addEventListener('click', () => openRoom(p.dataset.goto)));
+  on('#ctxT', 'click', () => { ui.ctx = !ui.ctx; saveUi(); render(); });
+  on('#addSk', 'change', e => { const v = e.target.value; if (!v) return; const [w, d] = v.split('x').map(Number); const r = ROOMS[ui.room]; addItem(r.floor, r, w, d); });
+  on('#rAdd2', 'click', () => { const r = ROOMS[ui.room]; addBed(r.floor, r, r.ip[0], r.ip[1]); });
+  on('#mMeas', 'click', () => { ui.mode = ui.mode === 'measure' ? 'select' : 'measure'; ui.measure = null; render(); });
+  on('#zIn', 'click', () => zoom(0.8)); on('#zOut', 'click', () => zoom(1.25)); on('#zFit', 'click', () => { ui.vb = fitVB(); ui.fitted = true; render(); });
+  document.querySelectorAll('[data-chk]').forEach(li => li.addEventListener('click', () => {
+    const c = ui._checks[+li.dataset.chk]; if (!c) return;
+    if (c.bed) { const f = findBed(c.bed); if (f) { const r = bedRoom(f.fk, f.b); if (r) { openRoom(r.id, c.bed); return; } openOverview(viewOfBed(f.fk, f.b)); } }
+    else if (c.room) openRoom(c.room);
+    else if (c.view) openOverview(c.view);
+  }));
+  document.querySelectorAll('[data-lim]').forEach(i => i.addEventListener('change', () => change(() => { S.settings.limits[i.dataset.lim] = i.value === '' ? '' : Math.max(0, +i.value); })));
+  document.querySelectorAll('[data-set]').forEach(i => i.addEventListener('change', () => change(() => { S.settings[i.dataset.set] = Math.max(0, +i.value || 0); })));
+  const roomEdit = (key, val) => { const sc = scen(); sc.rooms = sc.rooms || {}; const m = sc.rooms[ui.room] = Object.assign({}, roomMeta(sc, ui.room)); m[key] = val; };
+  on('#rName', 'change', e => change(() => roomEdit('name', e.target.value.trim())));
+  on('#rUse', 'change', e => change(() => roomEdit('use', e.target.value)));
+  on('#rNote', 'change', e => change(() => roomEdit('note', e.target.value), { noRender: true }));
+  on('#rClear', 'click', () => { const r = ROOMS[ui.room]; change(() => { scen().beds[r.floor] = S_beds(r.floor).filter(b => { const x = bedRoom(r.floor, b); return !x || x.id !== r.id; }); ui.sel = null; }); });
+  document.querySelectorAll('[data-sex]').forEach(btn => btn.addEventListener('click', () => change(() => { findBed(ui.sel.id).b.sex = btn.dataset.sex; })));
+  on('#bHl', 'change', e => change(() => { findBed(ui.sel.id).b.hl = e.target.checked; }));
+  on('#bLbl', 'change', e => change(() => { findBed(ui.sel.id).b.label = e.target.value.trim(); }));
+  on('#bW', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(1.6, Math.max(0.6, (+e.target.value || 100) / 100)); }));
+  on('#bL', 'change', e => change(() => { findBed(ui.sel.id).b.l = Math.min(2.4, Math.max(1.5, (+e.target.value || 210) / 100)); }));
+  on('#bMove', 'change', e => moveBedTo(e.target.value));
+  document.querySelectorAll('[data-skw]').forEach(btn => btn.addEventListener('click', () => resizeItem(+btn.dataset.skw / 100, null)));
+  document.querySelectorAll('[data-skd]').forEach(btn => btn.addEventListener('click', () => resizeItem(null, +btn.dataset.skd / 100)));
+  on('#bRot', 'click', rotateSel); on('#bDel', 'click', deleteSel); on('#bDup', 'click', dupSel);
+  on('#scName', 'change', e => change(() => { scen().name = e.target.value.trim() || 'Bez názvu'; }));
+  on('#scNote', 'change', e => change(() => { scen().note = e.target.value; }, { noRender: true }));
+  on('#dCopy', 'click', () => copyText(JSON.stringify({ app: 'oaza-planovac-luzek', S: { scenarios: S.scenarios, settings: S.settings } }, null, 1), 'Data všech variant jsou ve schránce.'));
+  on('#dPaste', 'click', pasteDialog);
+  on('#dSvg', 'click', downloadSvg);
+  on('#tCopy', 'click', copyTable);
+  document.querySelectorAll('tr[data-room]').forEach(tr => tr.addEventListener('click', () => { openRoom(tr.dataset.room); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+  bindPlan();
+}
+function moveBedTo(id) {
+  if (!id || !ui.sel) return; const f = findBed(ui.sel.id), r = ROOMS[id]; if (!f || !r) return;
+  if (!canEdit()) return;
+  const tmpl = Object.assign({}, f.b, { x: 1e6, y: 1e6 });
+  const spot = f.b.kind ? findSpotWall(r.floor, r, tmpl, r.ip[0], r.ip[1]) : findSpot(r.floor, r, r.ip[0], r.ip[1], tmpl);
+  change(() => {
+    scen()[f.arr][f.fk] = listOf(f.arr, f.fk).filter(b => b.id !== f.b.id);
+    const nb = Object.assign({}, f.b, spot ? { x: spot.x, y: spot.y, rot: spot.rot } : { x: r.ip[0], y: r.ip[1] });
+    listOf(f.arr, r.floor).push(nb);
+  }, { noRender: true });
+  if (!spot) toast('V cílové místnosti není volné místo, lůžko je položené doprostřed.');
+  openRoom(id, f.b.id);
+}
+function resizeItem(w, l) {
+  const f = findBed(ui.sel.id); if (!f) return;
+  change(() => {
+    const b = f.b, ow = b.w, ol = b.l, back = { 0: [0, 1], 90: [1, 0], 180: [0, -1], 270: [-1, 0] }[b.rot];
+    if (w) b.w = w; if (l) b.l = l;
+    // záda zůstanou na místě, mění se jen hloubka směrem do místnosti
+    const dl = b.l - ol; b.x = +(b.x - back[0] * dl / 2).toFixed(3); b.y = +(b.y - back[1] * dl / 2).toFixed(3);
+    void ow;
+  });
+}
+function rotateSel() {
+  if (!ui.sel || ui.sel.type !== 'bed') return; const f = findBed(ui.sel.id); if (!f) return;
+  change(() => {
+    const b = f.b, r = bedRoom(f.fk, b); b.rot = (b.rot + 90) % 360;
+    if (b.kind && !freeAt(f.fk, b) && r) { const nb = findSpotWall(f.fk, r, Object.assign({}, b), b.x, b.y, [b.rot]); if (nb && Math.hypot(nb.x - b.x, nb.y - b.y) < 2) { b.x = nb.x; b.y = nb.y; } return; }
+    if (!freeAt(f.fk, b) && r) { const nb = findSpot(f.fk, r, b.x, b.y, Object.assign({}, b), [b.rot]); if (nb && Math.hypot(nb.x - b.x, nb.y - b.y) < 1.6) { b.x = nb.x; b.y = nb.y; } }
+  });
+}
+function deleteSel() { if (!ui.sel || ui.sel.type !== 'bed') return; const f = findBed(ui.sel.id); if (!f) return; change(() => { scen()[f.arr][f.fk] = listOf(f.arr, f.fk).filter(b => b.id !== f.b.id); ui.sel = null; }); }
+function dupSel() {
+  if (!ui.sel || ui.sel.type !== 'bed') return; const f = findBed(ui.sel.id); if (!f) return; const r = bedRoom(f.fk, f.b);
+  const tmpl = Object.assign({}, f.b, { id: uid(f.arr === 'items' ? 'k' : 'b') });
+  const nb = r ? (f.b.kind ? findSpotWall(f.fk, r, tmpl, f.b.x, f.b.y) : findSpot(f.fk, r, f.b.x, f.b.y, tmpl)) : null;
+  const b = nb || Object.assign(tmpl, { x: f.b.x + f.b.w + 0.1 });
+  change(() => { listOf(f.arr, f.fk).push(b); ui.sel = { type: 'bed', id: b.id }; });
+}
+let zoomT = null;
+function zoom(k, cx, cy) {
+  const vb = ui.vb; if (cx == null) { cx = vb.x + vb.w / 2; cy = vb.y + vb.h / 2; }
+  const nw = Math.min(BOUNDS.w * 2, Math.max(0.8, vb.w * k)), kk = nw / vb.w;
+  ui.fitted = false;
+  ui.vb = { x: cx - (cx - vb.x) * kk, y: cy - (cy - vb.y) * kk, w: nw, h: vb.h * kk };
+  const svg = $('#plan'); if (svg) svg.setAttribute('viewBox', `${ui.vb.x} ${ui.vb.y} ${ui.vb.w} ${ui.vb.h}`);
+  ui.k = calcK(ui.vb); updateOverlay();
+  clearTimeout(zoomT); zoomT = setTimeout(() => { if (!ui.dragging && !isTyping()) render(); }, 220);
+}
+let resizeT = null;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (!ui.dragging && !isTyping()) render(); }, 200); });
+function svgPt(svg, e) { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return { x: q.x, y: -q.y, sx: q.x, sy: q.y }; }
+function drawGuides(gs) { const g = document.getElementById('guides'); if (g) g.innerHTML = gs.map(l => `<line vector-effect="non-scaling-stroke" x1="${l[0]}" y1="${-l[1]}" x2="${l[2]}" y2="${-l[3]}"/>`).join(''); }
+function drawMeasure() { const g = document.getElementById('measure'); if (g) g.innerHTML = measureSvg(); }
+function drawGaps(fk, b) { const g = document.getElementById('gaps'); if (g) g.innerHTML = ui.page === 'room' ? bedGaps(fk, b, ROOMS[ui.room]) : ''; }
+function bindPlan() {
+  const svg = $('#plan'); if (!svg) return;
+  let drag = null, pan = null;
+  svg.addEventListener('wheel', e => { e.preventDefault(); const p = svgPt(svg, e); zoom(Math.pow(1.0015, e.deltaY), p.sx, p.sy); }, { passive: false });
+  svg.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const g = e.target.closest('[data-bed]'), p = svgPt(svg, e);
+    if (g && ui.page === 'room' && ui.mode === 'select' && !sync.readOnly && sync.mode !== 'connecting') {
+      const f = findBed(g.dataset.bed); if (!f) return;
+      drag = { el: g, b: f.b, fk: f.fk, ox: p.x - f.b.x, oy: p.y - f.b.y, before: snapshot(), moved: false, x0: e.clientX, y0: e.clientY, bx: f.b.x, by: f.b.y };
+      svg.setPointerCapture(e.pointerId);
+      if (!(ui.sel && ui.sel.id === f.b.id)) { ui.sel = { type: 'bed', id: f.b.id }; drag.selChanged = true; g.innerHTML = objInner(f.b, { sel: true }); drawGaps(f.fk, f.b); }
+    } else {
+      pan = { x0: e.clientX, y0: e.clientY, vb: Object.assign({}, ui.vb), moved: false, p, alt: e.altKey, bed: g ? g.dataset.bed : null };
+      svg.setPointerCapture(e.pointerId);
+    }
+  });
+  svg.addEventListener('pointermove', e => {
+    if (drag) {
+      if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 3) return;
+      drag.moved = true; ui.dragging = true; drag.el.classList.add('drag');
+      const p = svgPt(svg, e), rx = p.x - drag.ox, ry = p.y - drag.oy;
+      const s = e.altKey ? { x: +(Math.round(rx / 0.01) * 0.01).toFixed(3), y: +(Math.round(ry / 0.01) * 0.01).toFixed(3), guides: [] } : snapBed(drag.fk, drag.b, rx, ry);
+      drag.b.x = s.x; drag.b.y = s.y;
+      drag.el.setAttribute('transform', `translate(${drag.b.x},${-drag.b.y}) rotate(${drag.b.rot})`);
+      drawGuides(s.guides); drawGaps(drag.fk, drag.b);
+    } else if (pan) {
+      const dx = e.clientX - pan.x0, dy = e.clientY - pan.y0;
+      if (!pan.moved && Math.hypot(dx, dy) < 4) {
+        if (ui.mode === 'measure' && ui.measure && ui.measure.a && !ui.measure.b) { const p = svgPt(svg, e); ui.measure.live = e.altKey ? { x: p.x, y: p.y } : measureSnap(curFloor(), p.x, p.y); drawMeasure(); }
+        return;
+      }
+      pan.moved = true;
+      const rc = svg.getBoundingClientRect(), k = Math.max(pan.vb.w / rc.width, pan.vb.h / rc.height);
+      ui.fitted = false; ui.vb = { x: pan.vb.x - dx * k, y: pan.vb.y - dy * k, w: pan.vb.w, h: pan.vb.h };
+      svg.setAttribute('viewBox', `${ui.vb.x} ${ui.vb.y} ${ui.vb.w} ${ui.vb.h}`);
+    } else if (ui.mode === 'measure' && ui.measure && ui.measure.a && !ui.measure.b) {
+      const p = svgPt(svg, e); ui.measure.live = e.altKey ? { x: p.x, y: p.y } : measureSnap(curFloor(), p.x, p.y); drawMeasure();
+    }
+  });
+  const end = e => {
+    if (drag) {
+      const d = drag; drag = null; ui.dragging = false;
+      if (d.moved && (d.b.x !== d.bx || d.b.y !== d.by)) { undo.push(d.before); if (undo.length > 60) undo.shift(); redo.length = 0; persist(); }
+      if (sync.pendingApply) { sync.pendingApply = false; applyRemote(); }
+      if (d.moved || d.selChanged) render();
+    } else if (pan) {
+      const P = pan; pan = null;
+      if (!P.moved && e.type === 'pointerup') {
+        if (ui.mode === 'measure') {
+          const pt = P.alt ? { x: P.p.x, y: P.p.y, snapped: null } : measureSnap(curFloor(), P.p.x, P.p.y);
+          if (!ui.measure || ui.measure.b) ui.measure = { page: ui.page, room: ui.room, view: ui.view, a: pt, b: null, live: null };
+          else { ui.measure.b = pt; ui.measure.live = null; }
+          drawMeasure(); return;
+        }
+        const fk = curFloor(), r = roomAt(fk, P.p.x, P.p.y);
+        if (ui.page === 'overview') {
+          if (P.bed) { const f = findBed(P.bed); const br = f && bedRoom(f.fk, f.b); if (br) { openRoom(br.id, P.bed); return; } }
+          if (r) openRoom(r.id);
+        } else {
+          if (ui.ctx && r && r.id !== ui.room && !P.bed) { openRoom(r.id); return; }
+          if (ui.sel) { ui.sel = null; render(); }
+        }
+      }
+    }
+  };
+  svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+}
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
+  if (e.key === 'Escape') { if (ui.mode === 'measure' && ui.measure) { ui.measure = null; drawMeasure(); return; } if (ui.mode === 'measure') { ui.mode = 'select'; render(); return; } if (ui.sel) { ui.sel = null; render(); return; } if (ui.page === 'room') openOverview(); return; }
+  if (e.key === 'm' || e.key === 'M') { ui.mode = ui.mode === 'measure' ? 'select' : 'measure'; ui.measure = null; render(); return; }
+  if (ui.page === 'room' && !ui.sel && (e.key === 'PageDown' || e.key === 'PageUp')) { const l = roomNavList(), i = l.indexOf(ui.room), n = l[i + (e.key === 'PageDown' ? 1 : -1)]; if (n) { e.preventDefault(); openRoom(n); } return; }
+  if (!ui.sel || ui.sel.type !== 'bed') return;
+  if (e.key === 'r' || e.key === 'R') { e.preventDefault(); rotateSel(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSel(); }
+  else if (e.key === 'd' || e.key === 'D') { e.preventDefault(); dupSel(); }
+  else if (e.key.startsWith('Arrow')) {
+    e.preventDefault(); const st = e.shiftKey ? 0.25 : (e.altKey ? 0.01 : SNAP);
+    change(() => { const b = findBed(ui.sel.id).b; if (e.key === 'ArrowLeft') b.x -= st; if (e.key === 'ArrowRight') b.x += st; if (e.key === 'ArrowUp') b.y += st; if (e.key === 'ArrowDown') b.y -= st; b.x = +b.x.toFixed(3); b.y = +b.y.toFixed(3); });
+  }
+});
+
+// ---------- schránka, import, export ----------
+function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+function copyText(txt, ok) { navigator.clipboard.writeText(txt).then(() => toast(ok), () => showText('Zkopíruj text ručně', txt)); }
+function showText(title, txt) {
+  const m = document.createElement('div'); m.className = 'modal';
+  m.innerHTML = `<div class="box"><b>${esc(title)}</b><textarea readonly>${esc(txt)}</textarea><div class="row"><button>Zavřít</button></div></div>`;
+  document.body.appendChild(m); m.querySelector('button').onclick = () => m.remove(); m.querySelector('textarea').select();
+}
+function pasteDialog() {
+  if (!canEdit()) return;
+  const m = document.createElement('div'); m.className = 'modal';
+  m.innerHTML = `<div class="box"><b>Vložit data</b><p class="hint">Vlož data zkopírovaná tlačítkem Kopírovat data. Varianty se přidají k těm stávajícím.</p><textarea id="pasteTa"></textarea><div class="row"><button class="primary" id="pasteOk">Přidat varianty</button><button id="pasteNo">Zrušit</button></div></div>`;
+  document.body.appendChild(m);
+  m.querySelector('#pasteNo').onclick = () => m.remove();
+  m.querySelector('#pasteOk').onclick = () => {
+    try {
+      const d = JSON.parse(m.querySelector('#pasteTa').value), src = d.S || d;
+      const list = src.scenarios || (src.beds ? [src] : null); if (!list) throw new Error('bez variant');
+      change(() => list.forEach(sc => { const c = JSON.parse(JSON.stringify(sc)); c.id = uid('s'); FLOORS.forEach(fk => (c.beds[fk] || []).forEach(b => b.id = uid('b'))); FLOORS.forEach(fk => ((c.items || {})[fk] || []).forEach(b => b.id = uid('k'))); if (S.scenarios.some(s => s.name === c.name)) c.name += ' (vloženo)'; S.scenarios.push(c); S.active = c.id; }));
+      m.remove(); toast('Přidáno variant: ' + list.length);
+    } catch (err) { toast('Data se nepodařilo načíst. Zkontroluj, že je vložený celý text.'); }
+  };
+}
+function copyTable() {
+  const sc = scen(), a = analyse(sc);
+  const ids = Object.keys(ROOMS).filter(id => (a.rooms[id] && a.rooms[id].n) || roomMeta(sc, id).use === 'pokoj').sort();
+  const lines = [['Část budovy', 'Č.', 'Název', 'Účel', 'm²', 'Lůžka', 'Ž', 'M', 'm²/lůžko'].join('\t')];
+  ids.forEach(id => { const r = ROOMS[id], m = roomMeta(sc, id), o = a.rooms[id] || { n: 0, Z: 0, M: 0 }; lines.push([VIEW[viewOfRoom(id)].label, id, m.name, (USE[m.use] || USE.jine).name, fmt(r.area), o.n, o.Z, o.M, o.n ? fmt(r.area / o.n) : ''].join('\t')); });
+  lines.push(['Celkem', '', '', '', '', a.total, a.sex.Z, a.sex.M, ''].join('\t'));
+  copyText(lines.join('\n'), 'Tabulka je ve schránce, vlož ji do Excelu nebo Wordu.');
+}
+let dlNs = null;
+async function downloadSvg() {
+  const H = BOUNDS.h, keepK = ui.k;
+  ui.k = BOUNDS.w / 1400;
+  const parts = ['1NP', '2NP-H', '3NP'].map(k => renderPlan({ page: 'overview', view: k, vb: BOUNDS, export: true }).replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, ''));
+  ui.k = keepK;
+  const titles = ['1.NP', '2.NP', '3.NP'];
+  const out = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="${BOUNDS.x} ${BOUNDS.y} ${BOUNDS.w} ${H * 3 + 2}" width="${Math.round(BOUNDS.w * 10)}mm" height="${Math.round((H * 3 + 2) * 10)}mm"><style>.r-id{font-family:monospace;fill:#7a8487}.r-name{font-family:sans-serif;font-weight:600;fill:#2a3134}.r-chip{font-family:sans-serif;fill:#2a3134}.r-delta{font-family:sans-serif;font-weight:700}.bed-lbl{font-family:sans-serif;font-weight:600}</style>` +
+    parts.map((p, i) => `<g transform="translate(0,${i * (H + 1)})">${p}<text x="${BOUNDS.x + BOUNDS.w - 0.6}" y="${BOUNDS.y + 1.2}" text-anchor="end" font-size=".8" font-weight="700" font-family="sans-serif">${titles[i]}</text></g>`).join('') + '</svg>';
+  try { await dlNs.save({ filename: `Rozmístění lůžek – ${scen().name}.svg`.replace(/[:?*"<>|\\/]/g, ''), data: out }); }
+  catch (e) { toast('Stažení se nepovedlo nebo bylo zrušeno.'); }
+}
+
+// ---------- start ----------
+if (!scenById(S.active)) S.active = S.scenarios[0].id;
+if (S.compare && !scenById(S.compare)) S.compare = '';
+routeFromHash();
+render();
+(function hook(n) {
+  if (window.claude && typeof window.claude.use === 'function') {
+    connect();
+    window.claude.use('downloads').then(d => { if (d) { dlNs = d; render(); } }).catch(() => {});
+  } else if (n < 20) setTimeout(() => hook(n + 1), 250);
+  else goLocal();
+})(0);
+})();
+</script>
+</body>
+</html>
