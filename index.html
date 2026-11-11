@@ -207,6 +207,27 @@ header.top .pair { display: inline-flex; align-items: center; gap: 6px; white-sp
 .note-ta:focus { background: #fff; }
 :root[data-theme="dark"] .note-ta { background: #2c2a1c; border-color: #5d5426; color: #f1ead0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .note-ta { background: #2c2a1c; border-color: #5d5426; color: #f1ead0; } }
+
+.roomcard { display: grid; gap: 10px; }
+.rc-head { display: flex; align-items: center; gap: 8px; }
+.rc-id { font-family: var(--f-mono); font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 2px 6px; flex: none; }
+.roomcard input.rc-name { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; border: 1px solid transparent; background: transparent; padding: 3px 6px; margin-left: -6px; border-radius: 6px; }
+.roomcard input.rc-name:hover { border-color: var(--line); }
+.roomcard input.rc-name:focus { border-color: var(--accent); background: var(--surface); }
+.rc-sub { font-size: 12px; color: var(--muted); margin-top: -8px; }
+.rc-stats { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.rc-stats > div { padding: 8px 10px; display: grid; gap: 2px; font-variant-numeric: tabular-nums; }
+.rc-stats > div + div { border-left: 1px solid var(--line); }
+.rc-stats b { font-size: 18px; font-weight: 600; line-height: 1.1; }
+.rc-stats span { font-size: 11.5px; color: var(--muted); line-height: 1.25; }
+.rc-extra { font-size: 12.5px; color: var(--muted); margin-top: -4px; }
+.rc-row { display: grid; grid-template-columns: 60px 1fr; align-items: center; gap: 8px; }
+.rc-row label { font-size: 12.5px; color: var(--muted); }
+.rc-row select { width: 100%; }
+.roomcard .note-field { margin: 0; }
+.rc-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 8px; }
+.linkbtn { border: 0; background: none; padding: 0; font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
+.linkbtn.danger { color: var(--bad); }
 </style>
 <script type="text/plain" id="head-tpl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rozmístění lůžek Oáza klidu</title><meta name="robots" content="noindex, nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&amp;family=IBM+Plex+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"></script>
 <script>
@@ -1093,13 +1114,23 @@ function detailAside(sc, a, ch) {
 function roomCard(sc, a) {
   const ro = sync.readOnly ? ' disabled' : '';
   const r = ROOMS[ui.room], m = roomMeta(sc, r.id), o = a.rooms[r.id] || { n: 0, Z: 0, M: 0, U: 0 };
-  return `<div class="card compact"><h2>Místnost ${r.id}<span>${VIEW[viewOfRoom(r.id)].label}</span></h2>
-    <div class="two"><div class="field"><label for="rName">Název</label><input id="rName" type="text" value="${esc(m.name)}"${ro}></div>
-    <div class="field"><label for="rUse">Účel</label><select id="rUse"${ro}>${USES.map(u => `<option value="${u[0]}"${m.use === u[0] ? ' selected' : ''}>${u[1]}</option>`).join('')}</select></div></div>
-    <div class="stats"><span><b>${fmt(r.area)}</b> m²</span><span><b>${o.n}</b> ${plural(o.n)}${o.n ? ` (Ž ${o.Z}, M ${o.M}${o.U ? ', ? ' + o.U : ''})` : ''}</span>${o.n ? `<span><b>${fmt(r.area / o.n)}</b> m²/lůžko</span>` : ''}${o.sk ? `<span><b>${o.sk}</b> ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}</span>` : ''}${o.pk ? `<span><b>${o.pk}</b> ${o.pk === 1 ? 'překážka' : o.pk < 5 ? 'překážky' : 'překážek'}</span>` : ''}</div>
+  const extra = [o.sk ? `${o.sk} ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}` : '', o.pk ? `${o.pk} ${o.pk === 1 ? 'překážka' : o.pk < 5 ? 'překážky' : 'překážek'}` : ''].filter(Boolean).join(' · ');
+  const sexLine = o.n ? `Ž ${o.Z} · M ${o.M}${o.U ? ' · ? ' + o.U : ''}` : 'žádné';
+  return `<div class="card compact roomcard">
+    <div class="rc-head">
+      <span class="rc-id">${r.id}</span>
+      <input id="rName" class="rc-name" type="text" value="${esc(m.name)}" placeholder="Název místnosti" aria-label="Název místnosti"${ro}>
+    </div>
+    <div class="rc-sub">${VIEW[viewOfRoom(r.id)].label}</div>
+    <div class="rc-stats">
+      <div><b>${fmt(r.area)}</b><span>m² plocha</span></div>
+      <div><b>${o.n}</b><span>${plural(o.n)} · ${sexLine}</span></div>
+      <div><b>${o.n ? fmt(r.area / o.n) : '–'}</b><span>m² na lůžko</span></div>
+    </div>
+    ${extra ? `<div class="rc-extra">${extra}</div>` : ''}
+    <div class="rc-row"><label for="rUse">Účel</label><select id="rUse"${ro}>${USES.map(u => `<option value="${u[0]}"${m.use === u[0] ? ' selected' : ''}>${u[1]}</option>`).join('')}</select></div>
     <div class="field note-field"><label for="rNote">Poznámka k pokoji</label><textarea id="rNote" class="note-ta${m.note ? ' has' : ''}" placeholder="Např. co se v pokoji plánuje, na co si dát pozor…"${ro}>${esc(m.note)}</textarea></div>
-    ${!ui.sel ? '<p class="hint">Klikni na lůžko a jeho vlastnosti se ukážou nahoře.</p>' : ''}
-    ${o.n ? `<div class="row"><button id="rClear" class="danger small"${ro}>Odebrat všechna lůžka</button></div>` : ''}
+    ${o.n ? `<div class="rc-foot"><button id="rClear" class="linkbtn danger"${ro}>Odebrat všechna lůžka z pokoje</button></div>` : ''}
   </div>`;
 }
 function bedCard(sc) {
