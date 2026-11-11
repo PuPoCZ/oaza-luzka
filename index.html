@@ -819,20 +819,20 @@ function objInner(b, opts) { return b.kind === 'prekazka' ? obstInner(b, opts) :
 function obstSvg(b, opts) {
   let g = `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${obstInner(b, opts)}</g>`;
   const [hw, hh] = half(b), fs = Math.min(px(10.5), hh * 0.9), txt = b.label || `${Math.round(b.w * 100)}×${Math.round(b.l * 100)}`;
-  if (hw * 2 / ui.k > 24 && hh * 2 / ui.k > 12) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + fs * 0.35}" font-size="${fs}" text-anchor="middle" fill="#fff" style="pointer-events:none">${esc(fitText(txt, hw * 1.9, fs))}</text>`;
+  if (hw * 2 / ui.k > 24 && hh * 2 / ui.k > 12) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + fs * 0.35}" font-size="${fs}" text-anchor="middle" style="fill:#fff;pointer-events:none">${esc(fitText(txt, hw * 1.9, fs))}</text>`;
   return g;
 }
 function itemSvg(b, opts) {
   if (b.kind === 'prekazka') return obstSvg(b, opts);
   let g = `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${itemInner(b, opts)}</g>`;
   const fs = px(9.5), txt = b.label || `${Math.round(b.w * 100)}×${Math.round(b.l * 100)}`;
-  if (Math.min(b.w, b.l) / ui.k > 26) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + fs * 0.35}" font-size="${fs}" text-anchor="middle" fill="#7a3d18" style="paint-order:stroke;stroke:#f3e3d3;stroke-width:${px(3)}">${esc(txt)}</text>`;
+  if (Math.min(b.w, b.l) / ui.k > 26) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + fs * 0.35}" font-size="${fs}" text-anchor="middle" style="fill:#7a3d18;paint-order:stroke;stroke:#f3e3d3;stroke-width:${px(3)}">${esc(txt)}</text>`;
   return g;
 }
 function bedSvg(b, opts) {
   if (b.kind) return itemSvg(b, opts);
   let g = `<g class="bed" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${bedInner(b, opts)}</g>`;
-  if (b.label) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + Math.min(px(11), 0.22) * 0.35}" font-size="${Math.min(px(11), 0.22)}" text-anchor="middle"${b.hl ? ' fill="#fff"' : ''}>${esc(b.label)}</text>`;
+  if (b.label) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + Math.min(px(11), 0.22) * 0.35}" font-size="${Math.min(px(11), 0.22)}" text-anchor="middle"${b.hl ? ' style="fill:#fff"' : ''}>${esc(b.label)}</text>`;
   return g;
 }
 const spotCache = {};
