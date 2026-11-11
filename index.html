@@ -199,6 +199,14 @@ header.top .savebox { justify-self: end; flex-wrap: nowrap; }
 }
 header.top .pair { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 @media (max-width: 1250px) { header.top h1 small { display: none; } }
+
+.note-field { margin: 4px 0 8px; }
+.note-field label { font-weight: 600; color: var(--ink); font-size: 12.5px; }
+.note-ta { min-height: 84px; background: #fffbe8; border: 1px solid #e9d98a; color: #2a2a1f; font-size: 14px; line-height: 1.45; resize: none; overflow: hidden; }
+.note-ta.has { border-color: #d9b93a; box-shadow: inset 3px 0 0 #d9b93a; }
+.note-ta:focus { background: #fff; }
+:root[data-theme="dark"] .note-ta { background: #2c2a1c; border-color: #5d5426; color: #f1ead0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .note-ta { background: #2c2a1c; border-color: #5d5426; color: #f1ead0; } }
 </style>
 <script type="text/plain" id="head-tpl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rozmístění lůžek Oáza klidu</title><meta name="robots" content="noindex, nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&amp;family=IBM+Plex+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"></script>
 <script>
@@ -1080,7 +1088,7 @@ function detailAside(sc, a, ch) {
       <span class="${over(lim[2], lim[3]) ? 'bad' : ''}">${lim[1]} <b>${lim[2]}</b> / ${lim[3] === '' || lim[3] == null ? '–' : lim[3]}</span>
     </div>${mine.length ? `<ul class="checks">${mine.map(([c, i]) => `<li class="${c.lvl}" data-chk="${i}">${esc(c.text)}</li>`).join('')}</ul>` : ''}</div>`;
   const mm = `<div class="card compact minimap"><h2>${FLOOR_LABEL[r.floor]}<span>klikni na místnost pro přechod</span></h2>${miniMap()}</div>`;
-  return mm + bedCard(sc) + roomCard(sc, a) + strip;
+  return mm + roomCard(sc, a) + bedCard(sc) + strip;
 }
 function roomCard(sc, a) {
   const ro = sync.readOnly ? ' disabled' : '';
@@ -1089,7 +1097,7 @@ function roomCard(sc, a) {
     <div class="two"><div class="field"><label for="rName">Název</label><input id="rName" type="text" value="${esc(m.name)}"${ro}></div>
     <div class="field"><label for="rUse">Účel</label><select id="rUse"${ro}>${USES.map(u => `<option value="${u[0]}"${m.use === u[0] ? ' selected' : ''}>${u[1]}</option>`).join('')}</select></div></div>
     <div class="stats"><span><b>${fmt(r.area)}</b> m²</span><span><b>${o.n}</b> ${plural(o.n)}${o.n ? ` (Ž ${o.Z}, M ${o.M}${o.U ? ', ? ' + o.U : ''})` : ''}</span>${o.n ? `<span><b>${fmt(r.area / o.n)}</b> m²/lůžko</span>` : ''}${o.sk ? `<span><b>${o.sk}</b> ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}</span>` : ''}${o.pk ? `<span><b>${o.pk}</b> ${o.pk === 1 ? 'překážka' : o.pk < 5 ? 'překážky' : 'překážek'}</span>` : ''}</div>
-    <details class="note"${m.note ? ' open' : ''}><summary>Poznámka${m.note ? '' : ' (žádná)'}</summary><textarea id="rNote"${ro}>${esc(m.note)}</textarea></details>
+    <div class="field note-field"><label for="rNote">Poznámka k pokoji</label><textarea id="rNote" class="note-ta${m.note ? ' has' : ''}" placeholder="Např. co se v pokoji plánuje, na co si dát pozor…"${ro}>${esc(m.note)}</textarea></div>
     ${!ui.sel ? '<p class="hint">Klikni na lůžko a jeho vlastnosti se ukážou nahoře.</p>' : ''}
     ${o.n ? `<div class="row"><button id="rClear" class="danger small"${ro}>Odebrat všechna lůžka</button></div>` : ''}
   </div>`;
@@ -1234,7 +1242,13 @@ function bind() {
   const roomEdit = (key, val) => { const sc = scen(); sc.rooms = sc.rooms || {}; const m = sc.rooms[ui.room] = Object.assign({}, roomMeta(sc, ui.room)); m[key] = val; };
   on('#rName', 'change', e => change(() => roomEdit('name', e.target.value.trim())));
   on('#rUse', 'change', e => change(() => roomEdit('use', e.target.value)));
-  on('#rNote', 'change', e => change(() => roomEdit('note', e.target.value), { noRender: true }));
+  const rn = $('#rNote');
+  if (rn) {
+    const fit = () => { rn.style.height = 'auto'; rn.style.height = Math.max(84, rn.scrollHeight + 2) + 'px'; };
+    fit(); let t = null;
+    rn.addEventListener('input', () => { fit(); rn.classList.toggle('has', !!rn.value.trim()); clearTimeout(t); t = setTimeout(() => change(() => roomEdit('note', rn.value), { noRender: true }), 600); });
+    rn.addEventListener('change', () => { clearTimeout(t); if (rn.value !== roomMeta(scen(), ui.room).note) change(() => roomEdit('note', rn.value), { noRender: true }); });
+  }
   on('#rClear', 'click', () => { const r = ROOMS[ui.room]; change(() => { scen().beds[r.floor] = S_beds(r.floor).filter(b => { const x = bedRoom(r.floor, b); return !x || x.id !== r.id; }); ui.sel = null; }); });
   document.querySelectorAll('[data-sex]').forEach(btn => btn.addEventListener('click', () => change(() => { findBed(ui.sel.id).b.sex = btn.dataset.sex; })));
   on('#bHl', 'change', e => change(() => { findBed(ui.sel.id).b.hl = e.target.checked; }));
