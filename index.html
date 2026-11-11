@@ -350,6 +350,7 @@ function bedFits(fk, b) {
 function overlaps(a, b) { const A = bedBox(a), B = bedBox(b), t = 0.01; return A[0] < B[2] - t && B[0] < A[2] - t && A[1] < B[3] - t && B[1] < A[3] - t; }
 function freeAt(fk, b) { const f = bedFits(fk, b); if (isCurtain(b)) return !!bedRoom(fk, b); if (isTv(b)) return f.ok; return f.ok && !(S_solid(fk).some(o => o.id !== b.id && overlaps(b, o))); }
 const isCurtain = b => b && b.kind === 'zaves';
+const isRod = b => isCurtain(b) && b.l < 0.03; // samotná tyč bez závěsu
 const isTv = b => b && b.kind === 'tv';
 const isSoft = b => isCurtain(b) || isTv(b); // nekolidují (visí nad lůžky, na rameni nebo na skříňce)
 function cEnds(b) { const t = -b.rot * Math.PI / 180, ux = Math.cos(t), uy = Math.sin(t); return [[b.x - ux * b.w / 2, b.y - uy * b.w / 2], [b.x + ux * b.w / 2, b.y + uy * b.w / 2]]; }
@@ -895,7 +896,7 @@ function obstInner(b, opts) {
 function curtainInner(b, opts) {
   const sel = opts && opts.sel, w = b.w, hit = Math.max(b.l, px(14));
   let g = `<rect x="${-w / 2}" y="${-hit / 2}" width="${w}" height="${hit}" fill="${sel ? 'rgba(232,113,10,.12)' : 'transparent'}" stroke="none"/>`;
-  g += `<line x1="${-w / 2}" y1="0" x2="${w / 2}" y2="0" stroke="${sel ? ACC : '#7b2d8b'}" stroke-width="3" stroke-dasharray="9 5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+  g += `<line x1="${-w / 2}" y1="0" x2="${w / 2}" y2="0" stroke="${sel ? ACC : '#7b2d8b'}" stroke-width="${isRod(b) ? 1.5 : 3}"${isRod(b) ? '' : ' stroke-dasharray="9 5"'} stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
   g += `<line x1="${-w / 2}" y1="${-px(5)}" x2="${-w / 2}" y2="${px(5)}" stroke="${sel ? ACC : '#7b2d8b'}" stroke-width="2" vector-effect="non-scaling-stroke"/><line x1="${w / 2}" y1="${-px(5)}" x2="${w / 2}" y2="${px(5)}" stroke="${sel ? ACC : '#7b2d8b'}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
   return g;
 }
@@ -1175,6 +1176,7 @@ function render() {
       <span><i style="background:#f3e3d3;border-color:#a0522d"></i>skříň</span>
       <span><i style="background:#4a4f52;border-color:#4a4f52"></i>překážka</span>
       <span><i style="background:none;border:0;border-top:3px dashed #7b2d8b;height:0;width:18px;vertical-align:middle"></i>závěs</span>
+      <span><i style="background:none;border:0;border-top:1.5px solid #7b2d8b;height:0;width:18px;vertical-align:middle"></i>tyč</span>
       <span><i style="background:#1d2427;border-color:#1d2427;border-bottom:3px solid #4fb3e8;height:6px"></i>TV</span>
       <span><i style="background:#fff;border-color:${ACC};border-width:2.5px"></i>vybrané</span>
       <span><i style="background:#fff;border-color:#b3261e;border-style:dashed"></i>kolize</span>
@@ -1285,9 +1287,10 @@ function obstCard(sc, f) {
 function curtainCard(sc, f) {
   const ro = sync.readOnly ? ' disabled' : '';
   const b = f.b;
-  return `<div class="card compact selcard"><h2>Vybraný závěs<span>${Math.round(b.w * 100)} cm</span></h2>
+  return `<div class="card compact selcard"><h2>${isRod(b) ? 'Vybraná tyč' : 'Vybraný závěs'}<span>${Math.round(b.w * 100)} cm</span></h2>
     <div class="row field"><label for="zvL">Délka</label><input id="zvL" type="number" min="10" max="1500" step="5" value="${Math.round(b.w * 100)}" style="width:84px"${ro}><span class="hint">cm, mění se od středu</span></div>
     <div class="field"><label for="obLbl">Popis</label><input id="obLbl" type="text" maxlength="40" value="${esc(b.label)}" placeholder="nepovinné, např. mezi lůžky"${ro}></div>
+    <div class="field"><label class="chk"><input id="zvRod" type="checkbox"${isRod(b) ? ' checked' : ''}${ro}> jen tyč, bez závěsu</label></div>
     <div class="row"><button id="bRot"${ro}>Otočit o 90°</button><button id="bDup"${ro}>Duplikovat</button><button id="bDel" class="danger"${ro}>Smazat</button></div>
   </div>`;
 }
@@ -1430,6 +1433,7 @@ function bind() {
   on('#bL', 'change', e => change(() => { findBed(ui.sel.id).b.l = Math.min(2.4, Math.max(1.5, (+e.target.value || 210) / 100)); }));
   on('#bMove', 'change', e => moveBedTo(e.target.value));
   on('#zvL', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(15, Math.max(0.1, (+e.target.value || 100) / 100)); }));
+  on('#zvRod', 'change', e => change(() => { findBed(ui.sel.id).b.l = e.target.checked ? 0.02 : 0.04; }));
   on('#tvW', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(2.5, Math.max(0.3, (+e.target.value || 100) / 100)); }));
   const setRot = v => change(() => { const b = findBed(ui.sel.id).b; b.rot = ((Math.round(v) % 360) + 360) % 360; });
   on('#tvRot', 'change', e => setRot(+e.target.value || 0));
