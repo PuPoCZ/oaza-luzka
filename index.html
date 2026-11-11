@@ -541,7 +541,8 @@ function analyse(sc) {
       const fit = bedFits(fk, b); let problem = null;
       if (!fit.room) problem = 'mimo místnost'; else if (!fit.ok) problem = 'zasahuje do zdi';
       for (let j = 0; j < beds.length; j++) if (j !== i && overlaps(b, beds[j])) { problem = (problem ? problem + ', ' : '') + 'překrývá jiné lůžko'; break; }
-      if (itemsOf(sc, fk).some(o => overlaps(b, o))) problem = (problem ? problem + ', ' : '') + 'překrývá skříň';
+      const hitIt = itemsOf(sc, fk).find(o => overlaps(b, o));
+      if (hitIt) problem = (problem ? problem + ', ' : '') + (hitIt.kind === 'prekazka' ? 'překrývá překážku' : 'překrývá skříň');
       if (problem) res.bad.push({ fk, id: b.id, room: fit.room ? fit.room.id : null, problem });
       const r = fit.room, z = r && r.zone === 'pristavba' ? 'pristavba' : fk; res.zones[z]++;
       if (r) { const o = res.rooms[r.id] || (res.rooms[r.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); o.n++; if (b.sex === 'Z') o.Z++; else if (b.sex === 'M') o.M++; else o.U++; if (b.hl) o.hl++; }
@@ -552,9 +553,10 @@ function analyse(sc) {
     its.forEach((b, i) => {
       const fit = bedFits(fk, b); let problem = null;
       if (!fit.room) problem = 'mimo místnost'; else if (!fit.ok) problem = 'zasahuje do zdi';
-      if (its.some((o, j) => j !== i && overlaps(b, o))) problem = (problem ? problem + ', ' : '') + 'překrývá jinou skříň';
-      if (problem) res.bad.push({ fk, id: b.id, room: fit.room ? fit.room.id : null, problem, item: true });
-      if (fit.room) { const o = res.rooms[fit.room.id] || (res.rooms[fit.room.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); o.sk = (o.sk || 0) + 1; }
+      const hit = its.find((o, j) => j !== i && overlaps(b, o));
+      if (hit) problem = (problem ? problem + ', ' : '') + (hit.kind === 'prekazka' ? 'překrývá překážku' : 'překrývá skříň');
+      if (problem) res.bad.push({ fk, id: b.id, room: fit.room ? fit.room.id : null, problem, item: true, kind: b.kind });
+      if (fit.room) { const o = res.rooms[fit.room.id] || (res.rooms[fit.room.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); if (b.kind === 'prekazka') o.pk = (o.pk || 0) + 1; else o.sk = (o.sk || 0) + 1; }
     });
   });
   return res;
@@ -568,8 +570,8 @@ function checks(sc, a) {
   const out = [], L = S.settings.limits;
   limitRows(a).forEach(([k, name, v, lim, vk]) => { if (lim !== '' && lim != null && v > lim) out.push({ lvl: 'bad', text: `${name}: ${v} lůžek, limit ${lim}`, view: vk }); });
   if (L.total && a.total > L.total) out.push({ lvl: 'bad', text: `Celkem ${a.total} lůžek, kapacita ${L.total}` });
-  a.bad.forEach(p => out.push({ lvl: 'bad', text: `${p.item ? 'Skříň' : 'Lůžko'} ${p.room ? 'v ' + p.room + ' ' : ''}${p.problem}`, bed: p.id }));
-  FLOORS.forEach(fk => (sc.beds[fk] || []).concat(itemsOf(sc, fk)).forEach(b => { if (inDoor(fk, b)) { const r = bedRoom(fk, b); out.push({ lvl: 'warn', text: `${b.kind ? 'Skříň' : 'Lůžko'} ${r ? 'v ' + r.id + ' ' : ''}zasahuje do rozletu dveří`, bed: b.id }); } }));
+  a.bad.forEach(p => out.push({ lvl: 'bad', text: `${p.item ? (p.kind === 'prekazka' ? 'Překážka' : 'Skříň') : 'Lůžko'} ${p.room ? 'v ' + p.room + ' ' : ''}${p.problem}`, bed: p.id }));
+  FLOORS.forEach(fk => (sc.beds[fk] || []).concat(itemsOf(sc, fk)).forEach(b => { if (inDoor(fk, b) && b.kind !== 'prekazka') { const r = bedRoom(fk, b); out.push({ lvl: 'warn', text: `${b.kind ? 'Skříň' : 'Lůžko'} ${r ? 'v ' + r.id + ' ' : ''}zasahuje do rozletu dveří`, bed: b.id }); } }));
   Object.keys(a.rooms).sort().forEach(id => {
     if (!a.rooms[id].n) return;
     const o = a.rooms[id], m = roomMeta(sc, id), nm = `${id} ${m.name || ''}`.trim();
@@ -686,6 +688,14 @@ function findSpotWall(fk, room, tmpl, px, py, rots) {
   }
   return best ? best.b : null;
 }
+function addObstacle(fk, room) {
+  if (!canEdit()) return;
+  const tmpl = { id: uid('p'), kind: 'prekazka', w: 0.5, l: 0.5, rot: 0, label: '' };
+  let b = findSpot(fk, room, room.ip[0], room.ip[1], tmpl, [0]);
+  if (!b) b = Object.assign(tmpl, { x: room.ip[0], y: room.ip[1] });
+  change(() => { listOf('items', fk).push(b); ui.sel = { type: 'bed', id: b.id }; });
+  setTimeout(() => { const el = document.getElementById('obW'); if (el) { el.focus(); el.select(); } }, 0);
+}
 function addItem(fk, room, wcm, dcm) {
   if (!canEdit()) return;
   const tmpl = { id: uid('k'), kind: 'skrin', w: wcm / 100, l: dcm / 100, rot: 0, label: '' };
@@ -791,8 +801,21 @@ function itemInner(b, opts) {
   g += `<rect x="${-w / 2 + sw / 2}" y="${-l / 2 + sw / 2}" width="${w - sw}" height="${l - sw}" fill="none" stroke="${sel ? ACC : bad ? '#b3261e' : '#a0522d'}" stroke-width="${sw}"${bad && !sel ? ` stroke-dasharray="${px(6)} ${px(4)}"` : ''}/>`;
   return g;
 }
-function objInner(b, opts) { return b.kind ? itemInner(b, opts) : bedInner(b, opts); }
+function obstInner(b, opts) {
+  const sel = opts && opts.sel, w = b.w, l = b.l;
+  let g = `<rect x="${-w / 2}" y="${-l / 2}" width="${w}" height="${l}" fill="#4a4f52" stroke="none"/>`;
+  if (sel) { const sw = Math.min(px(3), 0.06); g += `<rect x="${-w / 2 + sw / 2}" y="${-l / 2 + sw / 2}" width="${w - sw}" height="${l - sw}" fill="none" stroke="${ACC}" stroke-width="${sw}"/>`; }
+  return g;
+}
+function objInner(b, opts) { return b.kind === 'prekazka' ? obstInner(b, opts) : b.kind ? itemInner(b, opts) : bedInner(b, opts); }
+function obstSvg(b, opts) {
+  let g = `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${obstInner(b, opts)}</g>`;
+  const [hw, hh] = half(b), fs = Math.min(px(10.5), hh * 0.9), txt = b.label || `${Math.round(b.w * 100)}×${Math.round(b.l * 100)}`;
+  if (hw * 2 / ui.k > 24 && hh * 2 / ui.k > 12) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + fs * 0.35}" font-size="${fs}" text-anchor="middle" fill="#fff" style="pointer-events:none">${esc(fitText(txt, hw * 1.9, fs))}</text>`;
+  return g;
+}
 function itemSvg(b, opts) {
+  if (b.kind === 'prekazka') return obstSvg(b, opts);
   let g = `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${itemInner(b, opts)}</g>`;
   const fs = px(9.5), txt = b.label || `${Math.round(b.w * 100)}×${Math.round(b.l * 100)}`;
   if (Math.min(b.w, b.l) / ui.k > 26) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + fs * 0.35}" font-size="${fs}" text-anchor="middle" fill="#7a3d18" style="paint-order:stroke;stroke:#f3e3d3;stroke-width:${px(3)}">${esc(txt)}</text>`;
@@ -976,9 +999,9 @@ function render() {
     const prev = i > 0 ? list[i - 1] : (i === -1 ? list[0] : null), next = i >= 0 && i < list.length - 1 ? list[i + 1] : null;
     const groups = VIEWS.map(v => `<optgroup label="${v.label}">${Object.keys(ROOMS).filter(id => viewOfRoom(id) === v.k && (roomMeta(sc, id).name || (a.rooms[id] && a.rooms[id].n))).sort().map(id => `<option value="${id}"${id === ui.room ? ' selected' : ''}>${id} ${esc(roomMeta(sc, id).name)}</option>`).join('')}</optgroup>`).join('');
     toolbar = `<div class="group"><button id="goOv">← Přehled</button><button id="rPrev"${prev ? ` data-open="${prev}"` : ' disabled'} aria-label="Předchozí pokoj">‹</button><select id="roomSel" aria-label="Místnost">${groups}</select><button id="rNext"${next ? ` data-open="${next}"` : ' disabled'} aria-label="Další pokoj">›</button></div>
-      <div class="group"><button id="rAdd2">Přidat lůžko</button><select id="addSk" aria-label="Přidat skříň"><option value="">Přidat skříň…</option>${SK_D.map(d => SK_W.map(w => `<option value="${w}x${d}">skříň ${w} × ${d} cm</option>`).join('')).join('')}</select><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="ctxT" class="${ui.ctx ? 'on' : ''}" title="Zobrazí i sousední místnosti">Okolí</button></div>
+      <div class="group"><button id="rAdd2" title="Přidat lůžko 210 × 100 cm">+ Lůžko</button><button id="rAddP" title="Přidat překážku (sloup, radiátor…)">+ Překážka</button><select id="addSk" aria-label="Přidat skříň"><option value="">+ Skříň…</option>${SK_D.map(d => SK_W.map(w => `<option value="${w}x${d}">skříň ${w} × ${d} cm</option>`).join('')).join('')}</select><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="ctxT" class="${ui.ctx ? 'on' : ''}" title="Zobrazí i sousední místnosti">Okolí</button></div>
       <div class="group"><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pokoj</button></div>`;
-    hint = ui.mode === 'measure' ? 'Klikni na první a druhý bod. Body se chytají rohů a hran zdí i lůžek, s Alt bez chytání. Esc měření zruší.' : 'Lůžko nebo skříň táhni myší, přichytí se ke zdi, k jiným předmětům a k mřížce 5 cm (s Alt volně po 1 cm). R otočí, Delete smaže, šipky posunou o 5 cm. Čísla u stěn jsou délky v cm, u vybraného lůžka vzdálenosti ke stěnám.';
+    hint = ui.mode === 'measure' ? 'Klikni na první a druhý bod. Body se chytají rohů a hran zdí i lůžek, s Alt bez chytání. Esc měření zruší.' : 'Lůžko, skříň nebo překážku táhni myší, přichytí se ke zdi, k jiným předmětům a k mřížce 5 cm (s Alt volně po 1 cm). R otočí, Delete smaže, šipky posunou o 5 cm. Čísla u stěn jsou délky v cm, u vybraného lůžka vzdálenosti ke stěnám.';
   } else {
     toolbar = `<div class="group" role="tablist" aria-label="Část budovy">${VIEWS.map(v => `<button class="floor-tab${ui.view === v.k ? ' on' : ''}" data-view="${v.k}" role="tab" aria-selected="${ui.view === v.k}">${v.label}<b>${viewCount(a, v.k)}</b></button>`).join('')}</div>
       <div class="group"><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pohled</button></div>`;
@@ -1007,6 +1030,7 @@ function render() {
       <span><i style="background:${SEX[''].fill};border-color:${SEX[''].stroke}"></i>neurčeno</span>
       <span><i style="background:${SEX.Z.solid};border-color:${SEX.Z.solid}"></i><i style="background:${SEX.M.solid};border-color:${SEX.M.solid}"></i>zvýrazněné</span>
       <span><i style="background:#f3e3d3;border-color:#a0522d"></i>skříň</span>
+      <span><i style="background:#4a4f52;border-color:#4a4f52"></i>překážka</span>
       <span><i style="background:#fff;border-color:${ACC};border-width:2.5px"></i>vybrané</span>
       <span><i style="background:#fff;border-color:#b3261e;border-style:dashed"></i>kolize</span>
       ${USES.filter(u => u[0] !== 'komunikace' && u[0] !== 'jine').map(u => `<span><i style="background:${u[2]};border-color:#c9cccc"></i>${u[1]}</span>`).join('')}
@@ -1064,7 +1088,7 @@ function roomCard(sc, a) {
   return `<div class="card compact"><h2>Místnost ${r.id}<span>${VIEW[viewOfRoom(r.id)].label}</span></h2>
     <div class="two"><div class="field"><label for="rName">Název</label><input id="rName" type="text" value="${esc(m.name)}"${ro}></div>
     <div class="field"><label for="rUse">Účel</label><select id="rUse"${ro}>${USES.map(u => `<option value="${u[0]}"${m.use === u[0] ? ' selected' : ''}>${u[1]}</option>`).join('')}</select></div></div>
-    <div class="stats"><span><b>${fmt(r.area)}</b> m²</span><span><b>${o.n}</b> ${plural(o.n)}${o.n ? ` (Ž ${o.Z}, M ${o.M}${o.U ? ', ? ' + o.U : ''})` : ''}</span>${o.n ? `<span><b>${fmt(r.area / o.n)}</b> m²/lůžko</span>` : ''}${o.sk ? `<span><b>${o.sk}</b> ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}</span>` : ''}</div>
+    <div class="stats"><span><b>${fmt(r.area)}</b> m²</span><span><b>${o.n}</b> ${plural(o.n)}${o.n ? ` (Ž ${o.Z}, M ${o.M}${o.U ? ', ? ' + o.U : ''})` : ''}</span>${o.n ? `<span><b>${fmt(r.area / o.n)}</b> m²/lůžko</span>` : ''}${o.sk ? `<span><b>${o.sk}</b> ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}</span>` : ''}${o.pk ? `<span><b>${o.pk}</b> ${o.pk === 1 ? 'překážka' : o.pk < 5 ? 'překážky' : 'překážek'}</span>` : ''}</div>
     <details class="note"${m.note ? ' open' : ''}><summary>Poznámka${m.note ? '' : ' (žádná)'}</summary><textarea id="rNote"${ro}>${esc(m.note)}</textarea></details>
     ${!ui.sel ? '<p class="hint">Klikni na lůžko a jeho vlastnosti se ukážou nahoře.</p>' : ''}
     ${o.n ? `<div class="row"><button id="rClear" class="danger small"${ro}>Odebrat všechna lůžka</button></div>` : ''}
@@ -1089,7 +1113,22 @@ function bedCard(sc) {
     </details>
   </div>`;
 }
+function obstCard(sc, f) {
+  const ro = sync.readOnly ? ' disabled' : '';
+  const b = f.b, fit = bedFits(f.fk, b);
+  const targets = roomNavList().filter(id => id !== (fit.room && fit.room.id));
+  return `<div class="card compact selcard"><h2>Vybraná překážka<span>${Math.round(b.w * 100)} × ${Math.round(b.l * 100)} cm</span></h2>
+    <div class="field"><label for="obLbl">Popis</label><input id="obLbl" type="text" maxlength="40" value="${esc(b.label)}" placeholder="např. sloup, radiátor, umyvadlo"${ro}></div>
+    <div class="row field"><label for="obW">Šířka</label><input id="obW" type="number" min="5" max="1000" step="5" value="${Math.round(b.w * 100)}" style="width:76px"${ro}><label for="obL">Délka</label><input id="obL" type="number" min="5" max="1000" step="5" value="${Math.round(b.l * 100)}" style="width:76px"${ro}><span class="hint">cm</span></div>
+    <div class="row"><button id="bRot"${ro}>Otočit</button><button id="bDup"${ro}>Duplikovat</button><button id="bDel" class="danger"${ro}>Smazat</button></div>
+    ${fit.ok ? '' : '<p class="hint" style="color:var(--bad);margin:6px 0 0">Překážka přesahuje mimo místnost.</p>'}
+    <details class="more"><summary>Přesun</summary>
+      <div class="field"><label for="bMove">Přesunout do jiné místnosti</label><select id="bMove"${ro}><option value="">vyber místnost…</option>${targets.map(id => `<option value="${id}">${id} ${esc(roomMeta(sc, id).name)}</option>`).join('')}</select></div>
+    </details>
+  </div>`;
+}
 function itemCard(sc, f) {
+  if (f.b.kind === 'prekazka') return obstCard(sc, f);
   const ro = sync.readOnly ? ' disabled' : '';
   const b = f.b, fit = bedFits(f.fk, b), wcm = Math.round(b.w * 100), dcm = Math.round(b.l * 100);
   const targets = roomNavList().filter(id => id !== (fit.room && fit.room.id));
@@ -1180,6 +1219,7 @@ function bind() {
   document.querySelectorAll('.minimap [data-goto]').forEach(p => p.addEventListener('click', () => openRoom(p.dataset.goto)));
   on('#ctxT', 'click', () => { ui.ctx = !ui.ctx; saveUi(); render(); });
   on('#addSk', 'change', e => { const v = e.target.value; if (!v) return; const [w, d] = v.split('x').map(Number); const r = ROOMS[ui.room]; addItem(r.floor, r, w, d); });
+  on('#rAddP', 'click', () => { const r = ROOMS[ui.room]; addObstacle(r.floor, r); });
   on('#rAdd2', 'click', () => { const r = ROOMS[ui.room]; addBed(r.floor, r, r.ip[0], r.ip[1]); });
   on('#mMeas', 'click', () => { ui.mode = ui.mode === 'measure' ? 'select' : 'measure'; ui.measure = null; render(); });
   on('#zIn', 'click', () => zoom(0.8)); on('#zOut', 'click', () => zoom(1.25)); on('#zFit', 'click', () => { ui.vb = fitVB(); ui.fitted = true; render(); });
@@ -1202,6 +1242,9 @@ function bind() {
   on('#bW', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(1.6, Math.max(0.6, (+e.target.value || 100) / 100)); }));
   on('#bL', 'change', e => change(() => { findBed(ui.sel.id).b.l = Math.min(2.4, Math.max(1.5, (+e.target.value || 210) / 100)); }));
   on('#bMove', 'change', e => moveBedTo(e.target.value));
+  on('#obLbl', 'change', e => change(() => { findBed(ui.sel.id).b.label = e.target.value.trim().slice(0, 40); }));
+  on('#obW', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(10, Math.max(0.05, (+e.target.value || 50) / 100)); }));
+  on('#obL', 'change', e => change(() => { findBed(ui.sel.id).b.l = Math.min(10, Math.max(0.05, (+e.target.value || 50) / 100)); }));
   document.querySelectorAll('[data-skw]').forEach(btn => btn.addEventListener('click', () => resizeItem(+btn.dataset.skw / 100, null)));
   document.querySelectorAll('[data-skd]').forEach(btn => btn.addEventListener('click', () => resizeItem(null, +btn.dataset.skd / 100)));
   on('#bRot', 'click', rotateSel); on('#bDel', 'click', deleteSel); on('#bDup', 'click', dupSel);
@@ -1218,7 +1261,7 @@ function moveBedTo(id) {
   if (!id || !ui.sel) return; const f = findBed(ui.sel.id), r = ROOMS[id]; if (!f || !r) return;
   if (!canEdit()) return;
   const tmpl = Object.assign({}, f.b, { x: 1e6, y: 1e6 });
-  const spot = f.b.kind ? findSpotWall(r.floor, r, tmpl, r.ip[0], r.ip[1]) : findSpot(r.floor, r, r.ip[0], r.ip[1], tmpl);
+  const spot = f.b.kind === 'skrin' ? findSpotWall(r.floor, r, tmpl, r.ip[0], r.ip[1]) : findSpot(r.floor, r, r.ip[0], r.ip[1], tmpl);
   change(() => {
     scen()[f.arr][f.fk] = listOf(f.arr, f.fk).filter(b => b.id !== f.b.id);
     const nb = Object.assign({}, f.b, spot ? { x: spot.x, y: spot.y, rot: spot.rot } : { x: r.ip[0], y: r.ip[1] });
@@ -1241,6 +1284,7 @@ function rotateSel() {
   if (!ui.sel || ui.sel.type !== 'bed') return; const f = findBed(ui.sel.id); if (!f) return;
   change(() => {
     const b = f.b, r = bedRoom(f.fk, b); b.rot = (b.rot + 90) % 360;
+    if (b.kind === 'prekazka') return;
     if (b.kind && !freeAt(f.fk, b) && r) { const nb = findSpotWall(f.fk, r, Object.assign({}, b), b.x, b.y, [b.rot]); if (nb && Math.hypot(nb.x - b.x, nb.y - b.y) < 2) { b.x = nb.x; b.y = nb.y; } return; }
     if (!freeAt(f.fk, b) && r) { const nb = findSpot(f.fk, r, b.x, b.y, Object.assign({}, b), [b.rot]); if (nb && Math.hypot(nb.x - b.x, nb.y - b.y) < 1.6) { b.x = nb.x; b.y = nb.y; } }
   });
@@ -1249,7 +1293,7 @@ function deleteSel() { if (!ui.sel || ui.sel.type !== 'bed') return; const f = f
 function dupSel() {
   if (!ui.sel || ui.sel.type !== 'bed') return; const f = findBed(ui.sel.id); if (!f) return; const r = bedRoom(f.fk, f.b);
   const tmpl = Object.assign({}, f.b, { id: uid(f.arr === 'items' ? 'k' : 'b') });
-  const nb = r ? (f.b.kind ? findSpotWall(f.fk, r, tmpl, f.b.x, f.b.y) : findSpot(f.fk, r, f.b.x, f.b.y, tmpl)) : null;
+  const nb = r ? (f.b.kind === 'skrin' ? findSpotWall(f.fk, r, tmpl, f.b.x, f.b.y) : findSpot(f.fk, r, f.b.x, f.b.y, tmpl)) : null;
   const b = nb || Object.assign(tmpl, { x: f.b.x + f.b.w + 0.1 });
   change(() => { listOf(f.arr, f.fk).push(b); ui.sel = { type: 'bed', id: b.id }; });
 }

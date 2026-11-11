@@ -32,11 +32,11 @@ service cloud.firestore {
       allow create, update: if request.resource.data.keys().hasOnly(['sid', 'fk', 'kind', 'x', 'y', 'rot', 'w', 'l', 'label'])
         && str(request.resource.data.sid, 40)
         && request.resource.data.fk in ['1NP', '2NP', '3NP']
-        && request.resource.data.kind == 'skrin'
+        && request.resource.data.kind in ['skrin', 'prekazka']
         && num(request.resource.data.x) && num(request.resource.data.y)
         && request.resource.data.rot in [0, 90, 180, 270]
         && num(request.resource.data.w) && num(request.resource.data.l)
-        && str(request.resource.data.label, 20);
+        && str(request.resource.data.label, 40);
     }
 
     match /config/{id} {
