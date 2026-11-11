@@ -228,6 +228,7 @@ header.top .pair { display: inline-flex; align-items: center; gap: 6px; white-sp
 .rc-foot { display: flex; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 8px; }
 .linkbtn { border: 0; background: none; padding: 0; font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
 .linkbtn.danger { color: var(--bad); }
+.tvseg button { padding: 5px 4px; font-size: 12.5px; }
 </style>
 <script type="text/plain" id="head-tpl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rozmístění lůžek Oáza klidu</title><meta name="robots" content="noindex, nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&amp;family=IBM+Plex+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"></script>
 <script>
@@ -321,7 +322,11 @@ function inPoly(x, y, pts) {
 function roomAt(fk, x, y) { return FL[fk].rooms.find(r => inPoly(x, y, r.pts)) || null; }
 function half(b) { return (b.rot % 180 === 0) ? [b.w / 2, b.l / 2] : [b.l / 2, b.w / 2]; }
 function bedBox(b) { const [hw, hh] = half(b); return [b.x - hw, b.y - hh, b.x + hw, b.y + hh]; }
-function bedRoom(fk, b) { return roomAt(fk, b.x, b.y); }
+function bedRoom(fk, b) {
+  let r = roomAt(fk, b.x, b.y);
+  if (!r && b && b.kind === 'zaves') { const t = -b.rot * Math.PI / 180, nx = -Math.sin(t) * 0.05, ny = Math.cos(t) * 0.05; r = roomAt(fk, b.x + nx, b.y + ny) || roomAt(fk, b.x - nx, b.y - ny); }
+  return r;
+}
 function bedFits(fk, b) {
   const r = bedRoom(fk, b); if (!r) return { room: null, ok: false };
   const [hw, hh] = half(b), ins = 0.02;
@@ -329,7 +334,11 @@ function bedFits(fk, b) {
   return { room: r, ok: true };
 }
 function overlaps(a, b) { const A = bedBox(a), B = bedBox(b), t = 0.01; return A[0] < B[2] - t && B[0] < A[2] - t && A[1] < B[3] - t && B[1] < A[3] - t; }
-function freeAt(fk, b) { const f = bedFits(fk, b); return f.ok && !(S_objs(fk).some(o => o.id !== b.id && overlaps(b, o))); }
+function freeAt(fk, b) { const f = bedFits(fk, b); if (isCurtain(b)) return !!bedRoom(fk, b); if (isTv(b)) return f.ok; return f.ok && !(S_solid(fk).some(o => o.id !== b.id && overlaps(b, o))); }
+const isCurtain = b => b && b.kind === 'zaves';
+const isTv = b => b && b.kind === 'tv';
+const isSoft = b => isCurtain(b) || isTv(b); // nekolidují (visí nad lůžky, na rameni nebo na skříňce)
+function cEnds(b) { const t = -b.rot * Math.PI / 180, ux = Math.cos(t), uy = Math.sin(t); return [[b.x - ux * b.w / 2, b.y - uy * b.w / 2], [b.x + ux * b.w / 2, b.y + uy * b.w / 2]]; }
 const DOORS = Object.fromEntries(GEO.floors.map(f => [f.key, f.doors.map(d => {
   const [hx, hy, jx, jy, lx, ly] = d, r = Math.hypot(jx - hx, jy - hy), tx = hx + lx * r, ty = hy + ly * r;
   return { h: [hx, hy], u: [(jx - hx) / r, (jy - hy) / r], L: [lx, ly], r, box: [Math.min(hx, jx, tx), Math.min(hy, jy, ty), Math.max(hx, jx, tx), Math.max(hy, jy, ty)] };
@@ -350,6 +359,7 @@ function inDoor(fk, b) {
 function S_beds(fk) { return scen().beds[fk] || []; }
 function S_items(fk) { const sc = scen(); return (sc.items && sc.items[fk]) || []; }
 function S_objs(fk) { return S_beds(fk).concat(S_items(fk)); }
+function S_solid(fk) { return S_objs(fk).filter(o => !isSoft(o)); }
 function itemsOf(sc, fk) { return (sc.items && sc.items[fk]) || []; }
 const SK_W = [40, 60, 80], SK_D = [42, 62];
 function boundsOfRects(rects, m) {
@@ -570,7 +580,7 @@ function analyse(sc) {
       const fit = bedFits(fk, b); let problem = null;
       if (!fit.room) problem = 'mimo místnost'; else if (!fit.ok) problem = 'zasahuje do zdi';
       for (let j = 0; j < beds.length; j++) if (j !== i && overlaps(b, beds[j])) { problem = (problem ? problem + ', ' : '') + 'překrývá jiné lůžko'; break; }
-      const hitIt = itemsOf(sc, fk).find(o => overlaps(b, o));
+      const hitIt = itemsOf(sc, fk).find(o => !isSoft(o) && overlaps(b, o));
       if (hitIt) problem = (problem ? problem + ', ' : '') + (hitIt.kind === 'prekazka' ? 'překrývá překážku' : 'překrývá skříň');
       if (problem) res.bad.push({ fk, id: b.id, room: fit.room ? fit.room.id : null, problem });
       const r = fit.room, z = r && r.zone === 'pristavba' ? 'pristavba' : fk; res.zones[z]++;
@@ -578,7 +588,9 @@ function analyse(sc) {
     });
   });
   FLOORS.forEach(fk => {
-    const its = itemsOf(sc, fk);
+    const its = itemsOf(sc, fk).filter(o => !isSoft(o));
+    itemsOf(sc, fk).filter(isTv).forEach(b => { const r = bedRoom(fk, b); if (r) { const o = res.rooms[r.id] || (res.rooms[r.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); o.tv = (o.tv || 0) + 1; } });
+    itemsOf(sc, fk).filter(isCurtain).forEach(b => { const r = bedRoom(fk, b); if (r) { const o = res.rooms[r.id] || (res.rooms[r.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); o.zv = (o.zv || 0) + 1; } });
     its.forEach((b, i) => {
       const fit = bedFits(fk, b); let problem = null;
       if (!fit.room) problem = 'mimo místnost'; else if (!fit.ok) problem = 'zasahuje do zdi';
@@ -600,7 +612,7 @@ function checks(sc, a) {
   limitRows(a).forEach(([k, name, v, lim, vk]) => { if (lim !== '' && lim != null && v > lim) out.push({ lvl: 'bad', text: `${name}: ${v} lůžek, limit ${lim}`, view: vk }); });
   if (L.total && a.total > L.total) out.push({ lvl: 'bad', text: `Celkem ${a.total} lůžek, kapacita ${L.total}` });
   a.bad.forEach(p => out.push({ lvl: 'bad', text: `${p.item ? (p.kind === 'prekazka' ? 'Překážka' : 'Skříň') : 'Lůžko'} ${p.room ? 'v ' + p.room + ' ' : ''}${p.problem}`, bed: p.id }));
-  FLOORS.forEach(fk => (sc.beds[fk] || []).concat(itemsOf(sc, fk)).forEach(b => { if (inDoor(fk, b) && b.kind !== 'prekazka') { const r = bedRoom(fk, b); out.push({ lvl: 'warn', text: `${b.kind ? 'Skříň' : 'Lůžko'} ${r ? 'v ' + r.id + ' ' : ''}zasahuje do rozletu dveří`, bed: b.id }); } }));
+  FLOORS.forEach(fk => (sc.beds[fk] || []).concat(itemsOf(sc, fk)).forEach(b => { if (inDoor(fk, b) && b.kind !== 'prekazka' && !isSoft(b)) { const r = bedRoom(fk, b); out.push({ lvl: 'warn', text: `${b.kind ? 'Skříň' : 'Lůžko'} ${r ? 'v ' + r.id + ' ' : ''}zasahuje do rozletu dveří`, bed: b.id }); } }));
   Object.keys(a.rooms).sort().forEach(id => {
     if (!a.rooms[id].n) return;
     const o = a.rooms[id], m = roomMeta(sc, id), nm = `${id} ${m.name || ''}`.trim();
@@ -630,7 +642,7 @@ function snapBed(fk, b, rawX, rawY) {
       else if (Math.abs(a[1] - c[1]) < 1e-3) { const x0 = Math.min(a[0], c[0]), x1 = Math.max(a[0], c[0]); if (rawX + hw > x0 + 0.05 && rawX - hw < x1 - 0.05) { ys.push({ v: a[1] + hh, g: [x0, a[1], x1, a[1]] }, { v: a[1] - hh, g: [x0, a[1], x1, a[1]] }); } }
     }
   }
-  S_objs(fk).forEach(o => {
+  S_objs(fk).filter(o => !isCurtain(o)).forEach(o => {
     if (o.id === b.id) return;
     const [ox0, oy0, ox1, oy1] = bedBox(o);
     const yOver = rawY - hh < oy1 && rawY + hh > oy0, xOver = rawX - hw < ox1 && rawX + hw > ox0;
@@ -660,7 +672,7 @@ function findSpot(fk, room, px, py, tmpl, rots) {
   for (const rot of (rots || [0, 90])) for (let x = x0; x <= x1; x += 0.1) for (let y = y0; y <= y1; y += 0.1) {
     const b = Object.assign({}, tmpl, { x: Math.round(x / SNAP) * SNAP, y: Math.round(y / SNAP) * SNAP, rot });
     const f = bedFits(fk, b); if (!f.ok || f.room.id !== room.id) continue;
-    if (S_objs(fk).some(o => o.id !== b.id && overlaps(b, o)) || inDoor(fk, b)) continue;
+    if (S_solid(fk).some(o => o.id !== b.id && overlaps(b, o)) || inDoor(fk, b)) continue;
     const d = Math.hypot(b.x - px, b.y - py) + (rot === (rots ? rots[0] : 0) ? 0 : 0.01);
     if (!best || d < best.d) best = { d, b };
   }
@@ -709,7 +721,7 @@ function findSpotWall(fk, room, tmpl, px, py, rots) {
       if (x < x0 || x > x1 || y < y0 || y > y1) return;
       const b = Object.assign({}, tmpl, { x: +x.toFixed(3), y: +y.toFixed(3), rot });
       const f = bedFits(fk, b); if (!f.ok || f.room.id !== room.id) return;
-      if (S_objs(fk).some(o => o.id !== b.id && overlaps(b, o)) || inDoor(fk, b)) return;
+      if (S_solid(fk).some(o => o.id !== b.id && overlaps(b, o)) || inDoor(fk, b)) return;
       if (backGap(fk, room, b) > 0.02) return;
       const d = Math.hypot(b.x - px, b.y - py);
       if (!best || d < best.d) best = { d, b };
@@ -735,12 +747,13 @@ function addItem(fk, room, wcm, dcm) {
 }
 
 // ---------- měření ----------
-function measureSnap(fk, x, y) {
+function measureSnap(fk, x, y, onlyWallsCurtains) {
   const tol = snapTol(); let best = null;
   const consider = (px, py, d, kind) => { if (d <= tol && (!best || d < best.d - (kind === 'v' ? 0.02 : 0))) best = { x: px, y: py, d, kind }; };
   const pts = [], segs = [];
   FL[fk].rooms.filter(r => !(ui.page === 'room' && !ui.ctx) || r.id === ui.room).forEach(r => { r.pts.forEach((p, i) => { pts.push(p); segs.push([p, r.pts[(i + 1) % r.pts.length]]); }); });
-  S_objs(fk).forEach(b => { const [x0, y0, x1, y1] = bedBox(b); const c = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; c.forEach((p, i) => { pts.push(p); segs.push([p, c[(i + 1) % 4]]); }); });
+  S_objs(fk).filter(isCurtain).forEach(b => { const [p, q] = cEnds(b); pts.push(p, q); segs.push([p, q]); });
+  if (!onlyWallsCurtains) S_objs(fk).filter(o => !isCurtain(o)).forEach(b => { const [x0, y0, x1, y1] = bedBox(b); const c = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; c.forEach((p, i) => { pts.push(p); segs.push([p, c[(i + 1) % 4]]); }); });
   pts.forEach(p => consider(p[0], p[1], Math.hypot(p[0] - x, p[1] - y) - 0.03, 'v'));
   if (!best) segs.forEach(([a, c]) => { const [d, qx, qy] = segDist(x, y, a[0], a[1], c[0], c[1]); consider(qx, qy, d, 'e'); });
   return best ? { x: best.x, y: best.y, snapped: best.kind } : { x, y, snapped: null };
@@ -781,6 +794,35 @@ function roomVB(id) {
 }
 function curFloor() { return ui.page === 'room' ? ROOMS[ui.room].floor : VIEW[ui.view].fk; }
 function fitVB() { return ui.page === 'room' ? roomVB(ui.room) : Object.assign({}, VB[ui.view]); }
+
+function orthoEnd(a, b) { return Math.abs(b.x - a.x) >= Math.abs(b.y - a.y) ? { x: b.x, y: a.y, snapped: b.snapped } : { x: a.x, y: b.y, snapped: b.snapped }; }
+function draftEnd(d) { return d.shift ? orthoEnd(d.a, d.live) : d.live; }
+function draftSvg() {
+  const d = ui.draft; if (!d || !d.a || d.room !== ui.room) return '';
+  let s = `<circle cx="${d.a.x}" cy="${-d.a.y}" r="${px(4)}" fill="#7b2d8b" stroke="#fff" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+  if (d.live) {
+    const e = draftEnd(d), len = Math.hypot(e.x - d.a.x, e.y - d.a.y);
+    s += `<line x1="${d.a.x}" y1="${-d.a.y}" x2="${e.x}" y2="${-e.y}" stroke="#7b2d8b" stroke-width="3" stroke-dasharray="9 5" vector-effect="non-scaling-stroke"/>`;
+    s += `<circle cx="${e.x}" cy="${-e.y}" r="${px(4)}" fill="${e.snapped ? '#7b2d8b' : '#fff'}" stroke="#7b2d8b" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+    s += `<text x="${(d.a.x + e.x) / 2}" y="${-(d.a.y + e.y) / 2 - px(8)}" text-anchor="middle" font-size="${px(12)}" font-weight="700" font-family="IBM Plex Sans, sans-serif" fill="#7b2d8b" stroke="#fff" stroke-width="${px(3)}" paint-order="stroke">${Math.round(len * 100)} cm</text>`;
+  }
+  return s;
+}
+function addCurtain(a, e) {
+  const fk = curFloor(), dx = e.x - a.x, dy = e.y - a.y, len = Math.hypot(dx, dy);
+  if (len < 0.1) { toast('Závěs je moc krátký, klikni na druhý bod dál od prvního.'); return false; }
+  const rot = +(((Math.atan2(-dy, dx) * 180 / Math.PI) + 360) % 360).toFixed(2);
+  const b = { id: uid('z'), kind: 'zaves', x: +((a.x + e.x) / 2).toFixed(3), y: +((a.y + e.y) / 2).toFixed(3), rot, w: +len.toFixed(3), l: 0.04, label: '' };
+  change(() => { listOf('items', fk).push(b); ui.sel = { type: 'bed', id: b.id }; });
+  return true;
+}
+function addTv(fk, room, wcm) {
+  if (!canEdit()) return;
+  const tmpl = { id: uid('t'), kind: 'tv', w: wcm / 100, l: 0.08, rot: 0, label: '' };
+  let b = findSpotWall(fk, room, tmpl, room.ip[0], room.ip[1]) || Object.assign(tmpl, { x: room.ip[0], y: room.ip[1] });
+  change(() => { listOf('items', fk).push(b); ui.sel = { type: 'bed', id: b.id }; });
+}
+const TV_SIZES = [[32, 73], [40, 90], [43, 97], [50, 112], [55, 124], [65, 146]];
 
 // ---------- vykreslení výkresu ----------
 const staticCache = {};
@@ -836,7 +878,42 @@ function obstInner(b, opts) {
   if (sel) { const sw = Math.min(px(3), 0.06); g += `<rect x="${-w / 2 + sw / 2}" y="${-l / 2 + sw / 2}" width="${w - sw}" height="${l - sw}" fill="none" stroke="${ACC}" stroke-width="${sw}"/>`; }
   return g;
 }
-function objInner(b, opts) { return b.kind === 'prekazka' ? obstInner(b, opts) : b.kind ? itemInner(b, opts) : bedInner(b, opts); }
+function curtainInner(b, opts) {
+  const sel = opts && opts.sel, w = b.w, hit = Math.max(b.l, px(14));
+  let g = `<rect x="${-w / 2}" y="${-hit / 2}" width="${w}" height="${hit}" fill="${sel ? 'rgba(232,113,10,.12)' : 'transparent'}" stroke="none"/>`;
+  g += `<line x1="${-w / 2}" y1="0" x2="${w / 2}" y2="0" stroke="${sel ? ACC : '#7b2d8b'}" stroke-width="3" stroke-dasharray="9 5" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+  g += `<line x1="${-w / 2}" y1="${-px(5)}" x2="${-w / 2}" y2="${px(5)}" stroke="${sel ? ACC : '#7b2d8b'}" stroke-width="2" vector-effect="non-scaling-stroke"/><line x1="${w / 2}" y1="${-px(5)}" x2="${w / 2}" y2="${px(5)}" stroke="${sel ? ACC : '#7b2d8b'}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  return g;
+}
+function tvLabel(b) {
+  const fs = px(9.5), txt = b.label || `TV ${Math.round(b.w * 100)} cm`, t = -b.rot * Math.PI / 180, nx = Math.sin(t), ny = -Math.cos(t);
+  const d = b.l / 2 + fs * 1.1, x = b.x - nx * d, y = b.y - ny * d; // na straně zad, ať nepřekrývá šipku
+  return `<text class="bed-lbl" x="${x}" y="${-y + fs * 0.35}" font-size="${fs}" text-anchor="middle" style="fill:#1d2427;paint-order:stroke;stroke:#fff;stroke-width:${px(3)};pointer-events:none">${esc(txt)}</text>`;
+}
+function curtainJoints(curt) {
+  // spoj: konec závěsu leží na jiném závěsu (na jeho konci nebo kdekoli na tyči)
+  const seen = [], out = [];
+  curt.forEach(b => cEnds(b).forEach(p => {
+    const hit = curt.some(o => o.id !== b.id && (() => { const [q1, q2] = cEnds(o); return segDist(p[0], p[1], q1[0], q1[1], q2[0], q2[1])[0] < 0.03; })());
+    if (hit && !seen.some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.03)) { seen.push(p); out.push(p); }
+  }));
+  return out.map(p => `<circle cx="${p[0]}" cy="${-p[1]}" r="${Math.max(px(5), 0.035)}" fill="#7b2d8b" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke" style="pointer-events:none"/>`).join('');
+}
+function curtainLabel(b) {
+  if (!b.label) return '';
+  const fs = px(10), t = -b.rot * Math.PI / 180, nx = -Math.sin(t), ny = Math.cos(t), x = b.x + nx * fs * 0.9, y = b.y + ny * fs * 0.9;
+  return `<text class="bed-lbl" x="${x}" y="${-y + fs * 0.35}" font-size="${fs}" text-anchor="middle" style="fill:#7b2d8b;paint-order:stroke;stroke:#fff;stroke-width:${px(3)};pointer-events:none">${esc(b.label)}</text>`;
+}
+function tvInner(b, opts) {
+  const sel = opts && opts.sel, w = b.w, l = b.l, c = sel ? ACC : '#1d2427';
+  // tělo televize, obrazovka je spodní (přední) hrana, šipka ukazuje směr pohledu
+  let g = `<rect x="${-w / 2}" y="${-l / 2}" width="${w}" height="${l}" fill="#1d2427" stroke="${c}" stroke-width="${sel ? 3 : 1}" vector-effect="non-scaling-stroke"/>`;
+  g += `<line x1="${-w / 2}" y1="${l / 2}" x2="${w / 2}" y2="${l / 2}" stroke="#4fb3e8" stroke-width="3" vector-effect="non-scaling-stroke"/>`;
+  const a = Math.min(0.18, w * 0.25), y0 = l / 2 + px(4);
+  g += `<path d="M${-a / 2},${y0} L${a / 2},${y0} L0,${y0 + a * 0.7}Z" fill="#4fb3e8" opacity=".75"/>`;
+  return g;
+}
+function objInner(b, opts) { return isTv(b) ? tvInner(b, opts) : isCurtain(b) ? curtainInner(b, opts) : b.kind === 'prekazka' ? obstInner(b, opts) : b.kind ? itemInner(b, opts) : bedInner(b, opts); }
 function obstSvg(b, opts) {
   return `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${obstInner(b, opts)}</g>`;
 }
@@ -856,6 +933,8 @@ function obstLabel(b) {
   return g + `<text class="bed-lbl" x="${pos[0]}" y="${-pos[1] + fs * 0.35}" font-size="${fs}" text-anchor="middle" style="fill:#2a3134;paint-order:stroke;stroke:#fff;stroke-width:${px(3)};pointer-events:none">${esc(txt)}</text>`;
 }
 function itemSvg(b, opts) {
+  if (isTv(b)) return `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${tvInner(b, opts)}</g>`;
+  if (isCurtain(b)) return `<g class="bed item curtain" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${curtainInner(b, opts)}</g>`;
   if (b.kind === 'prekazka') return obstSvg(b, opts);
   let g = `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${itemInner(b, opts)}</g>`;
   const fs = px(9.5), txt = b.label || `${Math.round(b.w * 100)}×${Math.round(b.l * 100)}`;
@@ -894,7 +973,7 @@ function roomLabels(sc, a, ca, r, fk) {
   const fsId = px(9.5), fsName = px(11.5), fsChip = px(10.5);
   const maxW = r.rad * 2.6;
   if (maxW < fsName * 3) return `<text class="r-id" font-size="${fsId}" x="${r.ip[0]}" y="${-r.ip[1] + fsId * 0.35}" text-anchor="middle">${r.id}</text>`;
-  const sp = n ? labelSpot(r, (sc.beds[fk] || []).concat(itemsOf(sc, fk))) : r.ip, tx = sp[0], ty = -sp[1];
+  const sp = n ? labelSpot(r, (sc.beds[fk] || []).concat(itemsOf(sc, fk).filter(o => !isSoft(o)))) : r.ip, tx = sp[0], ty = -sp[1];
   let s = `<text class="r-id" font-size="${fsId}" x="${tx}" y="${ty - fsName * 1.05}" text-anchor="middle">${r.id}</text>`;
   if (m.name) s += `<text class="r-name" font-size="${fsName}" x="${tx}" y="${ty + fsName * 0.1}" text-anchor="middle">${esc(fitText(m.name, maxW, fsName))}</text>`;
   if (n || m.use === 'pokoj') s += `<text class="r-chip" font-size="${fsChip}" x="${tx}" y="${ty + fsName * 1.25}" text-anchor="middle">${n} ${plural(n)}${n ? ' · ' + fmt(r.area / n) + ' m²/l' : ''}</text>`;
@@ -920,7 +999,7 @@ function bedGaps(fk, b, room) {
   // vzdálenost od hran lůžka ke stěnám a k jiným lůžkům ve čtyřech směrech
   if (!room) return '';
   const [x0, y0, x1, y1] = bedBox(b), cx = b.x, cy = b.y, P = room.pts, out = [];
-  const others = S_objs(fk).filter(o => o.id !== b.id).map(bedBox);
+  const others = (isSoft(b) ? [] : S_solid(fk)).filter(o => o.id !== b.id).map(bedBox);
   const dirs = [[1, 0, x1, cy], [-1, 0, x0, cy], [0, 1, cx, y1], [0, -1, cx, y0]];
   dirs.forEach(([dx, dy, sx, sy]) => {
     let best = 1e9;
@@ -955,7 +1034,7 @@ function renderPlan(opts) {
   const badIds = new Set(a.bad.map(p => p.id));
   const R = roomId ? ROOMS[roomId] : null;
   const isSel = b => !exp && ui.sel && ui.sel.type === 'bed' && ui.sel.id === b.id;
-  const inRoom = b => R && inPoly(b.x, b.y, R.pts);
+  const inRoom = b => R && (inPoly(b.x, b.y, R.pts) || (isCurtain(b) && (bedRoom(fk, b) || {}).id === R.id));
   let s = `<svg id="${exp ? 'x' : 'plan'}" style="--halo:${px(3)};--hair:${px(1.2)}" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg" class="${roomId ? 'detail' : 'ov'}" role="img" aria-label="${roomId ? 'Pokoj ' + roomId : 'Půdorys ' + v.label}">`;
   s += `<rect x="${BOUNDS.x - 50}" y="${BOUNDS.y - 50}" width="${BOUNDS.w + 100}" height="${BOUNDS.h + 100}" fill="#fff"/>`;
   if (!roomId) s += '<g>' + f.rooms.map(r => `<path class="r-fill" data-room="${r.id}" d="${polyPath(r.pts)}" fill="${(USE[roomMeta(sc, r.id).use] || USE.jine).fill}"${v && v.zone && r.zone !== v.zone ? ' opacity=".45"' : ''}/>`).join('') + '</g>';
@@ -982,18 +1061,19 @@ function renderPlan(opts) {
     }
     s += `<g clip-path="url(#rc)" style="pointer-events:none">${showMinor ? `<rect x="${ox}" y="${oy}" width="${Math.max(...xs) - ox}" height="${Math.max(...ys) - Math.min(...ys)}" fill="url(#g5)"/>` : ''}<rect x="${ox}" y="${oy}" width="${Math.max(...xs) - ox}" height="${Math.max(...ys) - Math.min(...ys)}" fill="url(#g50)"/><rect x="${ox}" y="${oy}" width="${Math.max(...xs) - ox}" height="${Math.max(...ys) - Math.min(...ys)}" fill="url(#g100)"/></g>`;
     s += `<g style="pointer-events:none">${edgeDims(R)}</g>`;
-    s += '<g id="beds">' + itemsOf(sc, fk).concat(sc.beds[fk] || []).filter(inRoom).map(b => bedSvg(b, { bad: badIds.has(b.id), sel: isSel(b) })).join('') + '</g>';
-    s += '<g id="olabels">' + itemsOf(sc, fk).filter(b => b.kind === 'prekazka' && inRoom(b)).map(obstLabel).join('') + '</g>';
+    const solid = itemsOf(sc, fk).filter(o => !isSoft(o)), tvs = itemsOf(sc, fk).filter(isTv), curt = itemsOf(sc, fk).filter(isCurtain);
+    s += '<g id="beds">' + solid.concat(sc.beds[fk] || [], tvs, curt).filter(inRoom).map(b => bedSvg(b, { bad: badIds.has(b.id), sel: isSel(b) })).join('') + '</g>';
+    s += '<g id="olabels">' + solid.filter(b => b.kind === 'prekazka' && inRoom(b)).map(obstLabel).join('') + tvs.filter(inRoom).map(tvLabel).join('') + curt.filter(inRoom).map(curtainLabel).join('') + curtainJoints(curt.filter(inRoom)) + '</g>';
     const selB = ui.sel && ui.sel.type === 'bed' ? findBed(ui.sel.id) : null;
     s += `<g id="gaps" class="gaps">${selB && selB.fk === fk && inRoom(selB.b) ? bedGaps(fk, selB.b, R) : ''}</g>`;
   } else {
     s += staticLayer(fk) + notesLayer(fk);
-    s += '<g id="beds">' + itemsOf(sc, fk).concat(sc.beds[fk] || []).map(b => bedSvg(b, { bad: badIds.has(b.id) })).join('') + '</g>';
+    s += '<g id="beds">' + itemsOf(sc, fk).filter(o => !isSoft(o)).concat(sc.beds[fk] || [], itemsOf(sc, fk).filter(isTv), itemsOf(sc, fk).filter(isCurtain)).map(b => bedSvg(b, { bad: badIds.has(b.id) })).join('') + '</g>';
     s += '<g>' + itemsOf(sc, fk).filter(b => b.kind === 'prekazka').map(obstLabel).join('') + '</g>';
     s += f.rooms.map(r => roomLabels(sc, a, ca, r, fk)).join('');
   }
   s += `<g id="guides" fill="none" stroke="${ACC}" stroke-width="1.5" stroke-dasharray="6 4"></g>`;
-  if (!exp) s += `<g id="measure">${measureSvg()}</g>`;
+  if (!exp) s += `<g id="measure">${measureSvg()}${draftSvg()}</g>`;
   return s + '</svg>';
 }
 function miniMap() {
@@ -1042,9 +1122,9 @@ function render() {
     const prev = i > 0 ? list[i - 1] : (i === -1 ? list[0] : null), next = i >= 0 && i < list.length - 1 ? list[i + 1] : null;
     const groups = VIEWS.map(v => `<optgroup label="${v.label}">${Object.keys(ROOMS).filter(id => viewOfRoom(id) === v.k && (roomMeta(sc, id).name || (a.rooms[id] && a.rooms[id].n))).sort().map(id => `<option value="${id}"${id === ui.room ? ' selected' : ''}>${id} ${esc(roomMeta(sc, id).name)}</option>`).join('')}</optgroup>`).join('');
     toolbar = `<div class="group"><button id="goOv">← Přehled</button><button id="rPrev"${prev ? ` data-open="${prev}"` : ' disabled'} aria-label="Předchozí pokoj">‹</button><select id="roomSel" aria-label="Místnost">${groups}</select><button id="rNext"${next ? ` data-open="${next}"` : ' disabled'} aria-label="Další pokoj">›</button></div>
-      <div class="group"><button id="rAdd2" title="Přidat lůžko 210 × 100 cm">+ Lůžko</button><button id="rAddP" title="Přidat překážku (sloup, radiátor…)">+ Překážka</button><select id="addSk" aria-label="Přidat skříň"><option value="">+ Skříň…</option>${SK_D.map(d => SK_W.map(w => `<option value="${w}x${d}">skříň ${w} × ${d} cm</option>`).join('')).join('')}</select><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="ctxT" class="${ui.ctx ? 'on' : ''}" title="Zobrazí i sousední místnosti">Okolí</button></div>
+      <div class="group"><button id="rAdd2" title="Přidat lůžko 210 × 100 cm">+ Lůžko</button><button id="rAddP" title="Přidat překážku (sloup, radiátor…)">+ Překážka</button><button id="mCurt" class="${ui.mode === 'curtain' ? 'on' : ''}" title="Nakreslit závěs (tyč) dvěma kliknutími">+ Závěs</button><select id="addTv" aria-label="Přidat televizi"><option value="">+ TV…</option>${TV_SIZES.map(([d, w]) => `<option value="${w}">TV ${d}″ (šířka ${w} cm)</option>`).join('')}</select><select id="addSk" aria-label="Přidat skříň"><option value="">+ Skříň…</option>${SK_D.map(d => SK_W.map(w => `<option value="${w}x${d}">skříň ${w} × ${d} cm</option>`).join('')).join('')}</select><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="ctxT" class="${ui.ctx ? 'on' : ''}" title="Zobrazí i sousední místnosti">Okolí</button></div>
       <div class="group"><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pokoj</button></div>`;
-    hint = ui.mode === 'measure' ? 'Klikni na první a druhý bod. Body se chytají rohů a hran zdí i lůžek, s Alt bez chytání. Esc měření zruší.' : 'Lůžko, skříň nebo překážku táhni myší, přichytí se ke zdi, k jiným předmětům a k mřížce 5 cm (s Alt volně po 1 cm). R otočí, Delete smaže, šipky posunou o 5 cm. Čísla u stěn jsou délky v cm, u vybraného lůžka vzdálenosti ke stěnám.';
+    hint = ui.mode === 'curtain' ? 'Závěs: klikni na začátek a konec tyče. Konce se chytají zdí, rohů a jiných závěsů (s Alt bez chytání), se Shiftem jen vodorovně nebo svisle. Můžeš kreslit další, Esc kreslení ukončí.' : ui.mode === 'measure' ? 'Klikni na první a druhý bod. Body se chytají rohů a hran zdí i lůžek, s Alt bez chytání. Esc měření zruší.' : 'Předměty táhni myší, přichytí se ke zdi, k jiným předmětům a k mřížce 5 cm (s Alt volně po 1 cm). R otočí, Delete smaže, šipky posunou o 5 cm. Čísla u stěn jsou délky v cm, u vybraného lůžka vzdálenosti ke stěnám.';
   } else {
     toolbar = `<div class="group" role="tablist" aria-label="Část budovy">${VIEWS.map(v => `<button class="floor-tab${ui.view === v.k ? ' on' : ''}" data-view="${v.k}" role="tab" aria-selected="${ui.view === v.k}">${v.label}<b>${viewCount(a, v.k)}</b></button>`).join('')}</div>
       <div class="group"><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pohled</button></div>`;
@@ -1066,7 +1146,7 @@ function render() {
   <main class="grid"><section class="plan">
     <div class="toolbar">${toolbar}</div>
     <div class="hint toolhint">${hint}</div>
-    <div class="svgwrap${ui.mode === 'measure' ? ' adding' : ''}${ui.page === 'overview' ? ' is-ov' : ''}" id="wrap">${renderPlan()}<div id="ovl" class="ovl">${overlayHtml()}</div></div>
+    <div class="svgwrap${ui.mode === 'measure' || ui.mode === 'curtain' ? ' adding' : ''}${ui.page === 'overview' ? ' is-ov' : ''}" id="wrap">${renderPlan()}<div id="ovl" class="ovl">${overlayHtml()}</div></div>
     <div class="legend">
       <span><i style="background:${SEX.Z.fill};border-color:${SEX.Z.stroke}"></i>žena</span>
       <span><i style="background:${SEX.M.fill};border-color:${SEX.M.stroke}"></i>muž</span>
@@ -1074,6 +1154,8 @@ function render() {
       <span><i style="background:${SEX.Z.solid};border-color:${SEX.Z.solid}"></i><i style="background:${SEX.M.solid};border-color:${SEX.M.solid}"></i>zvýrazněné</span>
       <span><i style="background:#f3e3d3;border-color:#a0522d"></i>skříň</span>
       <span><i style="background:#4a4f52;border-color:#4a4f52"></i>překážka</span>
+      <span><i style="background:none;border:0;border-top:3px dashed #7b2d8b;height:0;width:18px;vertical-align:middle"></i>závěs</span>
+      <span><i style="background:#1d2427;border-color:#1d2427;border-bottom:3px solid #4fb3e8;height:6px"></i>TV</span>
       <span><i style="background:#fff;border-color:${ACC};border-width:2.5px"></i>vybrané</span>
       <span><i style="background:#fff;border-color:#b3261e;border-style:dashed"></i>kolize</span>
       ${USES.filter(u => u[0] !== 'komunikace' && u[0] !== 'jine').map(u => `<span><i style="background:${u[2]};border-color:#c9cccc"></i>${u[1]}</span>`).join('')}
@@ -1128,7 +1210,7 @@ function detailAside(sc, a, ch) {
 function roomCard(sc, a) {
   const ro = sync.readOnly ? ' disabled' : '';
   const r = ROOMS[ui.room], m = roomMeta(sc, r.id), o = a.rooms[r.id] || { n: 0, Z: 0, M: 0, U: 0 };
-  const extra = [o.sk ? `${o.sk} ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}` : '', o.pk ? `${o.pk} ${o.pk === 1 ? 'překážka' : o.pk < 5 ? 'překážky' : 'překážek'}` : ''].filter(Boolean).join(' · ');
+  const extra = [o.zv ? `${o.zv} ${o.zv === 1 ? 'závěs' : o.zv < 5 ? 'závěsy' : 'závěsů'}` : '', o.tv ? `${o.tv} TV` : '', o.sk ? `${o.sk} ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}` : '', o.pk ? `${o.pk} ${o.pk === 1 ? 'překážka' : o.pk < 5 ? 'překážky' : 'překážek'}` : ''].filter(Boolean).join(' · ');
   const sexLine = o.n ? `Ž ${o.Z} · M ${o.M}${o.U ? ' · ? ' + o.U : ''}` : 'žádné';
   return `<div class="card compact roomcard">
     <div class="rc-head">
@@ -1180,7 +1262,29 @@ function obstCard(sc, f) {
     </details>
   </div>`;
 }
+function curtainCard(sc, f) {
+  const ro = sync.readOnly ? ' disabled' : '';
+  const b = f.b;
+  return `<div class="card compact selcard"><h2>Vybraný závěs<span>${Math.round(b.w * 100)} cm</span></h2>
+    <div class="row field"><label for="zvL">Délka</label><input id="zvL" type="number" min="10" max="1500" step="5" value="${Math.round(b.w * 100)}" style="width:84px"${ro}><span class="hint">cm, mění se od středu</span></div>
+    <div class="field"><label for="obLbl">Popis</label><input id="obLbl" type="text" maxlength="40" value="${esc(b.label)}" placeholder="nepovinné, např. mezi lůžky"${ro}></div>
+    <div class="row"><button id="bRot"${ro}>Otočit o 90°</button><button id="bDup"${ro}>Duplikovat</button><button id="bDel" class="danger"${ro}>Smazat</button></div>
+  </div>`;
+}
+function tvCard(sc, f) {
+  const ro = sync.readOnly ? ' disabled' : '';
+  const b = f.b, wcm = Math.round(b.w * 100);
+  return `<div class="card compact selcard"><h2>Vybraná televize<span>${wcm} cm</span></h2>
+    <div class="field"><label>Velikost</label><div class="seg full tvseg">${TV_SIZES.map(([d, w]) => `<button data-tvw="${w}" class="${wcm === w ? 'on' : ''}" title="šířka ${w} cm"${ro}>${d}″</button>`).join('')}</div></div>
+    <div class="row field"><label for="tvW">Šířka</label><input id="tvW" type="number" min="30" max="250" step="1" value="${wcm}" style="width:76px"${ro}><span class="hint">cm</span></div>
+    <div class="field"><label for="obLbl">Popis</label><input id="obLbl" type="text" maxlength="40" value="${esc(b.label)}" placeholder="např. na rameni, na skříňce"${ro}></div>
+    <div class="row"><button id="bRot"${ro}>Otočit</button><button id="bDup"${ro}>Duplikovat</button><button id="bDel" class="danger"${ro}>Smazat</button></div>
+    <p class="hint">Modrá hrana je obrazovka, šipka ukazuje, kam se dívá. Televize se do kolizí nepočítá, může stát i nad skříňkou.</p>
+  </div>`;
+}
 function itemCard(sc, f) {
+  if (isTv(f.b)) return tvCard(sc, f);
+  if (isCurtain(f.b)) return curtainCard(sc, f);
   if (f.b.kind === 'prekazka') return obstCard(sc, f);
   const ro = sync.readOnly ? ' disabled' : '';
   const b = f.b, fit = bedFits(f.fk, b), wcm = Math.round(b.w * 100), dcm = Math.round(b.l * 100);
@@ -1272,9 +1376,11 @@ function bind() {
   document.querySelectorAll('.minimap [data-goto]').forEach(p => p.addEventListener('click', () => openRoom(p.dataset.goto)));
   on('#ctxT', 'click', () => { ui.ctx = !ui.ctx; saveUi(); render(); });
   on('#addSk', 'change', e => { const v = e.target.value; if (!v) return; const [w, d] = v.split('x').map(Number); const r = ROOMS[ui.room]; addItem(r.floor, r, w, d); });
+  on('#mCurt', 'click', () => { ui.mode = ui.mode === 'curtain' ? 'select' : 'curtain'; ui.draft = null; ui.measure = null; render(); });
+  on('#addTv', 'change', e => { const w = +e.target.value; if (!w) return; const r = ROOMS[ui.room]; addTv(r.floor, r, w); });
   on('#rAddP', 'click', () => { const r = ROOMS[ui.room]; addObstacle(r.floor, r); });
   on('#rAdd2', 'click', () => { const r = ROOMS[ui.room]; addBed(r.floor, r, r.ip[0], r.ip[1]); });
-  on('#mMeas', 'click', () => { ui.mode = ui.mode === 'measure' ? 'select' : 'measure'; ui.measure = null; render(); });
+  on('#mMeas', 'click', () => { ui.mode = ui.mode === 'measure' ? 'select' : 'measure'; ui.measure = null; ui.draft = null; render(); });
   on('#zIn', 'click', () => zoom(0.8)); on('#zOut', 'click', () => zoom(1.25)); on('#zFit', 'click', () => { ui.vb = fitVB(); ui.fitted = true; render(); });
   document.querySelectorAll('[data-chk]').forEach(li => li.addEventListener('click', () => {
     const c = ui._checks[+li.dataset.chk]; if (!c) return;
@@ -1301,6 +1407,9 @@ function bind() {
   on('#bW', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(1.6, Math.max(0.6, (+e.target.value || 100) / 100)); }));
   on('#bL', 'change', e => change(() => { findBed(ui.sel.id).b.l = Math.min(2.4, Math.max(1.5, (+e.target.value || 210) / 100)); }));
   on('#bMove', 'change', e => moveBedTo(e.target.value));
+  on('#zvL', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(15, Math.max(0.1, (+e.target.value || 100) / 100)); }));
+  on('#tvW', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(2.5, Math.max(0.3, (+e.target.value || 100) / 100)); }));
+  document.querySelectorAll('[data-tvw]').forEach(btn => btn.addEventListener('click', () => change(() => { findBed(ui.sel.id).b.w = +btn.dataset.tvw / 100; })));
   on('#obLbl', 'change', e => change(() => { findBed(ui.sel.id).b.label = e.target.value.trim().slice(0, 40); }));
   on('#obW', 'change', e => change(() => { findBed(ui.sel.id).b.w = Math.min(10, Math.max(0.05, (+e.target.value || 50) / 100)); }));
   on('#obL', 'change', e => change(() => { findBed(ui.sel.id).b.l = Math.min(10, Math.max(0.05, (+e.target.value || 50) / 100)); }));
@@ -1320,7 +1429,7 @@ function moveBedTo(id) {
   if (!id || !ui.sel) return; const f = findBed(ui.sel.id), r = ROOMS[id]; if (!f || !r) return;
   if (!canEdit()) return;
   const tmpl = Object.assign({}, f.b, { x: 1e6, y: 1e6 });
-  const spot = f.b.kind === 'skrin' ? findSpotWall(r.floor, r, tmpl, r.ip[0], r.ip[1]) : findSpot(r.floor, r, r.ip[0], r.ip[1], tmpl);
+  const spot = isCurtain(f.b) ? null : (f.b.kind === 'skrin' || isTv(f.b)) ? findSpotWall(r.floor, r, tmpl, r.ip[0], r.ip[1]) : findSpot(r.floor, r, r.ip[0], r.ip[1], tmpl);
   change(() => {
     scen()[f.arr][f.fk] = listOf(f.arr, f.fk).filter(b => b.id !== f.b.id);
     const nb = Object.assign({}, f.b, spot ? { x: spot.x, y: spot.y, rot: spot.rot } : { x: r.ip[0], y: r.ip[1] });
@@ -1343,7 +1452,7 @@ function rotateSel() {
   if (!ui.sel || ui.sel.type !== 'bed') return; const f = findBed(ui.sel.id); if (!f) return;
   change(() => {
     const b = f.b, r = bedRoom(f.fk, b); b.rot = (b.rot + 90) % 360;
-    if (b.kind === 'prekazka') return;
+    if (b.kind === 'prekazka' || isSoft(b)) return;
     if (b.kind && !freeAt(f.fk, b) && r) { const nb = findSpotWall(f.fk, r, Object.assign({}, b), b.x, b.y, [b.rot]); if (nb && Math.hypot(nb.x - b.x, nb.y - b.y) < 2) { b.x = nb.x; b.y = nb.y; } return; }
     if (!freeAt(f.fk, b) && r) { const nb = findSpot(f.fk, r, b.x, b.y, Object.assign({}, b), [b.rot]); if (nb && Math.hypot(nb.x - b.x, nb.y - b.y) < 1.6) { b.x = nb.x; b.y = nb.y; } }
   });
@@ -1352,7 +1461,7 @@ function deleteSel() { if (!ui.sel || ui.sel.type !== 'bed') return; const f = f
 function dupSel() {
   if (!ui.sel || ui.sel.type !== 'bed') return; const f = findBed(ui.sel.id); if (!f) return; const r = bedRoom(f.fk, f.b);
   const tmpl = Object.assign({}, f.b, { id: uid(f.arr === 'items' ? 'k' : 'b') });
-  const nb = r ? (f.b.kind === 'skrin' ? findSpotWall(f.fk, r, tmpl, f.b.x, f.b.y) : findSpot(f.fk, r, f.b.x, f.b.y, tmpl)) : null;
+  const nb = isSoft(f.b) ? (() => { const t = -f.b.rot * Math.PI / 180; return Object.assign({}, tmpl, { x: +(f.b.x - Math.sin(t) * 0.25).toFixed(3), y: +(f.b.y + Math.cos(t) * 0.25).toFixed(3) }); })() : r ? (f.b.kind === 'skrin' ? findSpotWall(f.fk, r, tmpl, f.b.x, f.b.y) : findSpot(f.fk, r, f.b.x, f.b.y, tmpl)) : null;
   const b = nb || Object.assign(tmpl, { x: f.b.x + f.b.w + 0.1 });
   change(() => { listOf(f.arr, f.fk).push(b); ui.sel = { type: 'bed', id: b.id }; });
 }
@@ -1370,7 +1479,7 @@ let resizeT = null;
 window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (!ui.dragging && !isTyping()) render(); }, 200); });
 function svgPt(svg, e) { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse()); return { x: q.x, y: -q.y, sx: q.x, sy: q.y }; }
 function drawGuides(gs) { const g = document.getElementById('guides'); if (g) g.innerHTML = gs.map(l => `<line vector-effect="non-scaling-stroke" x1="${l[0]}" y1="${-l[1]}" x2="${l[2]}" y2="${-l[3]}"/>`).join(''); }
-function drawMeasure() { const g = document.getElementById('measure'); if (g) g.innerHTML = measureSvg(); }
+function drawMeasure() { const g = document.getElementById('measure'); if (g) g.innerHTML = measureSvg() + draftSvg(); }
 function drawGaps(fk, b) { const g = document.getElementById('gaps'); if (g) g.innerHTML = ui.page === 'room' ? bedGaps(fk, b, ROOMS[ui.room]) : ''; }
 function bindPlan() {
   const svg = $('#plan'); if (!svg) return;
@@ -1385,7 +1494,7 @@ function bindPlan() {
       svg.setPointerCapture(e.pointerId);
       if (!(ui.sel && ui.sel.id === f.b.id)) { ui.sel = { type: 'bed', id: f.b.id }; drag.selChanged = true; g.innerHTML = objInner(f.b, { sel: true }); drawGaps(f.fk, f.b); }
     } else {
-      pan = { x0: e.clientX, y0: e.clientY, vb: Object.assign({}, ui.vb), moved: false, p, alt: e.altKey, bed: g ? g.dataset.bed : null };
+      pan = { x0: e.clientX, y0: e.clientY, vb: Object.assign({}, ui.vb), moved: false, p, alt: e.altKey, shift: e.shiftKey, bed: g ? g.dataset.bed : null };
       svg.setPointerCapture(e.pointerId);
     }
   });
@@ -1395,7 +1504,7 @@ function bindPlan() {
       if (!drag.moved) { const ol = document.getElementById('olabels'); if (ol && drag.b.kind === 'prekazka') ol.style.display = 'none'; }
       drag.moved = true; ui.dragging = true; drag.el.classList.add('drag');
       const p = svgPt(svg, e), rx = p.x - drag.ox, ry = p.y - drag.oy;
-      const s = e.altKey ? { x: +(Math.round(rx / 0.01) * 0.01).toFixed(3), y: +(Math.round(ry / 0.01) * 0.01).toFixed(3), guides: [] } : snapBed(drag.fk, drag.b, rx, ry);
+      const s = (e.altKey || isCurtain(drag.b)) ? { x: +(Math.round(rx / 0.01) * 0.01).toFixed(3), y: +(Math.round(ry / 0.01) * 0.01).toFixed(3), guides: [] } : snapBed(drag.fk, drag.b, rx, ry);
       drag.b.x = s.x; drag.b.y = s.y;
       drag.el.setAttribute('transform', `translate(${drag.b.x},${-drag.b.y}) rotate(${drag.b.rot})`);
       drawGuides(s.guides); drawGaps(drag.fk, drag.b);
@@ -1403,6 +1512,7 @@ function bindPlan() {
       const dx = e.clientX - pan.x0, dy = e.clientY - pan.y0;
       if (!pan.moved && Math.hypot(dx, dy) < 4) {
         if (ui.mode === 'measure' && ui.measure && ui.measure.a && !ui.measure.b) { const p = svgPt(svg, e); ui.measure.live = e.altKey ? { x: p.x, y: p.y } : measureSnap(curFloor(), p.x, p.y); drawMeasure(); }
+        if (ui.mode === 'curtain' && ui.draft && ui.draft.a) { const p = svgPt(svg, e); ui.draft.live = e.altKey ? { x: p.x, y: p.y } : measureSnap(curFloor(), p.x, p.y, true); ui.draft.shift = e.shiftKey; drawMeasure(); }
         return;
       }
       pan.moved = true;
@@ -1411,6 +1521,8 @@ function bindPlan() {
       svg.setAttribute('viewBox', `${ui.vb.x} ${ui.vb.y} ${ui.vb.w} ${ui.vb.h}`);
     } else if (ui.mode === 'measure' && ui.measure && ui.measure.a && !ui.measure.b) {
       const p = svgPt(svg, e); ui.measure.live = e.altKey ? { x: p.x, y: p.y } : measureSnap(curFloor(), p.x, p.y); drawMeasure();
+    } else if (ui.mode === 'curtain' && ui.draft && ui.draft.a) {
+      const p = svgPt(svg, e); ui.draft.live = e.altKey ? { x: p.x, y: p.y } : measureSnap(curFloor(), p.x, p.y, true); ui.draft.shift = e.shiftKey; drawMeasure();
     }
   });
   const end = e => {
@@ -1422,6 +1534,13 @@ function bindPlan() {
     } else if (pan) {
       const P = pan; pan = null;
       if (!P.moved && e.type === 'pointerup') {
+        if (ui.mode === 'curtain' && ui.page === 'room') {
+          if (!canEdit()) return;
+          const pt = P.alt ? { x: P.p.x, y: P.p.y, snapped: null } : measureSnap(curFloor(), P.p.x, P.p.y, true);
+          if (!ui.draft || !ui.draft.a) { ui.draft = { room: ui.room, a: pt, live: null }; drawMeasure(); return; }
+          const a = ui.draft.a; ui.draft = null;
+          addCurtain(a, P.shift ? orthoEnd(a, pt) : pt); return;
+        }
         if (ui.mode === 'measure') {
           const pt = P.alt ? { x: P.p.x, y: P.p.y, snapped: null } : measureSnap(curFloor(), P.p.x, P.p.y);
           if (!ui.measure || ui.measure.b) ui.measure = { page: ui.page, room: ui.room, view: ui.view, a: pt, b: null, live: null };
@@ -1446,7 +1565,7 @@ document.addEventListener('keydown', e => {
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); doRedo(); return; }
-  if (e.key === 'Escape') { if (ui.mode === 'measure' && ui.measure) { ui.measure = null; drawMeasure(); return; } if (ui.mode === 'measure') { ui.mode = 'select'; render(); return; } if (ui.sel) { ui.sel = null; render(); return; } if (ui.page === 'room') openOverview(); return; }
+  if (e.key === 'Escape') { if (ui.mode === 'curtain') { if (ui.draft) { ui.draft = null; drawMeasure(); return; } ui.mode = 'select'; render(); return; } if (ui.mode === 'measure' && ui.measure) { ui.measure = null; drawMeasure(); return; } if (ui.mode === 'measure') { ui.mode = 'select'; render(); return; } if (ui.sel) { ui.sel = null; render(); return; } if (ui.page === 'room') openOverview(); return; }
   if (e.key === 'm' || e.key === 'M') { ui.mode = ui.mode === 'measure' ? 'select' : 'measure'; ui.measure = null; render(); return; }
   if (ui.page === 'room' && !ui.sel && (e.key === 'PageDown' || e.key === 'PageUp')) { const l = roomNavList(), i = l.indexOf(ui.room), n = l[i + (e.key === 'PageDown' ? 1 : -1)]; if (n) { e.preventDefault(); openRoom(n); } return; }
   if (!ui.sel || ui.sel.type !== 'bed') return;
