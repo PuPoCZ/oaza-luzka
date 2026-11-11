@@ -349,6 +349,9 @@ function bedFits(fk, b) {
 }
 function overlaps(a, b) { const A = bedBox(a), B = bedBox(b), t = 0.01; return A[0] < B[2] - t && B[0] < A[2] - t && A[1] < B[3] - t && B[1] < A[3] - t; }
 function freeAt(fk, b) { const f = bedFits(fk, b); if (isCurtain(b)) return !!bedRoom(fk, b); if (isTv(b)) return f.ok; return f.ok && !(S_solid(fk).some(o => o.id !== b.id && overlaps(b, o))); }
+const isFurn = b => b && (b.kind === 'stul' || b.kind === 'zidle');
+const isObst = b => b && (b.kind === 'prekazka' || isFurn(b));
+const obstName = b => b.kind === 'stul' ? 'stůl' : b.kind === 'zidle' ? 'židli' : 'překážku';
 const isCurtain = b => b && b.kind === 'zaves';
 const isRod = b => isCurtain(b) && b.l < 0.03; // samotná tyč bez závěsu
 const isTv = b => b && b.kind === 'tv';
@@ -596,7 +599,7 @@ function analyse(sc) {
       if (!fit.room) problem = 'mimo místnost'; else if (!fit.ok) problem = 'zasahuje do zdi';
       for (let j = 0; j < beds.length; j++) if (j !== i && overlaps(b, beds[j])) { problem = (problem ? problem + ', ' : '') + 'překrývá jiné lůžko'; break; }
       const hitIt = itemsOf(sc, fk).find(o => !isSoft(o) && overlaps(b, o));
-      if (hitIt) problem = (problem ? problem + ', ' : '') + (hitIt.kind === 'prekazka' ? 'překrývá překážku' : 'překrývá skříň');
+      if (hitIt) problem = (problem ? problem + ', ' : '') + (isObst(hitIt) ? 'překrývá ' + obstName(hitIt) : 'překrývá skříň');
       if (problem) res.bad.push({ fk, id: b.id, room: fit.room ? fit.room.id : null, problem });
       const r = fit.room, z = r && r.zone === 'pristavba' ? 'pristavba' : fk; res.zones[z]++;
       if (r) { const o = res.rooms[r.id] || (res.rooms[r.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); o.n++; if (b.sex === 'Z') o.Z++; else if (b.sex === 'M') o.M++; else o.U++; if (b.hl) o.hl++; }
@@ -610,9 +613,9 @@ function analyse(sc) {
       const fit = bedFits(fk, b); let problem = null;
       if (!fit.room) problem = 'mimo místnost'; else if (!fit.ok) problem = 'zasahuje do zdi';
       const hit = its.find((o, j) => j !== i && overlaps(b, o));
-      if (hit) problem = (problem ? problem + ', ' : '') + (hit.kind === 'prekazka' ? 'překrývá překážku' : 'překrývá skříň');
+      if (hit) problem = (problem ? problem + ', ' : '') + (isObst(hit) ? 'překrývá ' + obstName(hit) : 'překrývá skříň');
       if (problem) res.bad.push({ fk, id: b.id, room: fit.room ? fit.room.id : null, problem, item: true, kind: b.kind });
-      if (fit.room) { const o = res.rooms[fit.room.id] || (res.rooms[fit.room.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); if (b.kind === 'prekazka') o.pk = (o.pk || 0) + 1; else o.sk = (o.sk || 0) + 1; }
+      if (fit.room) { const o = res.rooms[fit.room.id] || (res.rooms[fit.room.id] = { n: 0, Z: 0, M: 0, U: 0, hl: 0 }); if (isFurn(b)) o.nb = (o.nb || 0) + 1; else if (b.kind === 'prekazka') o.pk = (o.pk || 0) + 1; else o.sk = (o.sk || 0) + 1; }
     });
   });
   return res;
@@ -626,8 +629,8 @@ function checks(sc, a) {
   const out = [], L = S.settings.limits;
   limitRows(a).forEach(([k, name, v, lim, vk]) => { if (lim !== '' && lim != null && v > lim) out.push({ lvl: 'bad', text: `${name}: ${v} lůžek, limit ${lim}`, view: vk }); });
   if (L.total && a.total > L.total) out.push({ lvl: 'bad', text: `Celkem ${a.total} lůžek, kapacita ${L.total}` });
-  a.bad.forEach(p => out.push({ lvl: 'bad', text: `${p.item ? (p.kind === 'prekazka' ? 'Překážka' : 'Skříň') : 'Lůžko'} ${p.room ? 'v ' + p.room + ' ' : ''}${p.problem}`, bed: p.id }));
-  FLOORS.forEach(fk => (sc.beds[fk] || []).concat(itemsOf(sc, fk)).forEach(b => { if (inDoor(fk, b) && b.kind !== 'prekazka' && !isSoft(b)) { const r = bedRoom(fk, b); out.push({ lvl: 'warn', text: `${b.kind ? 'Skříň' : 'Lůžko'} ${r ? 'v ' + r.id + ' ' : ''}zasahuje do rozletu dveří`, bed: b.id }); } }));
+  a.bad.forEach(p => out.push({ lvl: 'bad', text: `${p.item ? (p.kind === 'stul' ? 'Stůl' : p.kind === 'zidle' ? 'Židle' : p.kind === 'prekazka' ? 'Překážka' : 'Skříň') : 'Lůžko'} ${p.room ? 'v ' + p.room + ' ' : ''}${p.problem}`, bed: p.id }));
+  FLOORS.forEach(fk => (sc.beds[fk] || []).concat(itemsOf(sc, fk)).forEach(b => { if (inDoor(fk, b) && !isObst(b) && !isSoft(b)) { const r = bedRoom(fk, b); out.push({ lvl: 'warn', text: `${b.kind ? 'Skříň' : 'Lůžko'} ${r ? 'v ' + r.id + ' ' : ''}zasahuje do rozletu dveří`, bed: b.id }); } }));
   Object.keys(a.rooms).sort().forEach(id => {
     if (!a.rooms[id].n) return;
     const o = a.rooms[id], m = roomMeta(sc, id), nm = `${id} ${m.name || ''}`.trim();
@@ -751,6 +754,14 @@ function addObstacle(fk, room) {
   if (!b) b = Object.assign(tmpl, { x: room.ip[0], y: room.ip[1] });
   change(() => { listOf('items', fk).push(b); ui.sel = { type: 'bed', id: b.id }; });
   setTimeout(() => { const el = document.getElementById('obW'); if (el) { el.focus(); el.select(); } }, 0);
+}
+const FURN = [['stul', 70, 60, 'stolek'], ['stul', 80, 80, 'stůl'], ['stul', 120, 80, 'stůl'], ['zidle', 45, 45, 'židle'], ['zidle', 70, 75, 'křeslo']];
+function addFurn(fk, room, i) {
+  if (!canEdit()) return; const [kind, w, l, label] = FURN[i];
+  const tmpl = { id: uid('n'), kind, w: w / 100, l: l / 100, rot: 0, label };
+  let b = findSpot(fk, room, room.ip[0], room.ip[1], tmpl, [0]);
+  if (!b) b = Object.assign(tmpl, { x: room.ip[0], y: room.ip[1] });
+  change(() => { listOf('items', fk).push(b); ui.sel = { type: 'bed', id: b.id }; });
 }
 function addItem(fk, room, wcm, dcm) {
   if (!canEdit()) return;
@@ -889,7 +900,8 @@ function itemInner(b, opts) {
 }
 function obstInner(b, opts) {
   const sel = opts && opts.sel, w = b.w, l = b.l;
-  let g = `<rect x="${-w / 2}" y="${-l / 2}" width="${w}" height="${l}" fill="#4a4f52" stroke="none"/>`;
+  let g = `<rect x="${-w / 2}" y="${-l / 2}" width="${w}" height="${l}" fill="${b.kind === 'stul' ? '#8a6a45' : b.kind === 'zidle' ? '#5d7386' : '#4a4f52'}" stroke="none"/>`;
+  if (b.kind === 'zidle') { const t = Math.min(0.07, l * 0.2); g += `<rect x="${-w / 2}" y="${-l / 2}" width="${w}" height="${t}" fill="#2f4050" stroke="none"/>`; }
   if (sel) { const sw = Math.min(px(3), 0.06); g += `<rect x="${-w / 2 + sw / 2}" y="${-l / 2 + sw / 2}" width="${w - sw}" height="${l - sw}" fill="none" stroke="${ACC}" stroke-width="${sw}"/>`; }
   return g;
 }
@@ -934,7 +946,7 @@ function tvInner(b, opts) {
   }
   return g;
 }
-function objInner(b, opts) { return isTv(b) ? tvInner(b, opts) : isCurtain(b) ? curtainInner(b, opts) : b.kind === 'prekazka' ? obstInner(b, opts) : b.kind ? itemInner(b, opts) : bedInner(b, opts); }
+function objInner(b, opts) { return isTv(b) ? tvInner(b, opts) : isCurtain(b) ? curtainInner(b, opts) : isObst(b) ? obstInner(b, opts) : b.kind ? itemInner(b, opts) : bedInner(b, opts); }
 function obstSvg(b, opts) {
   return `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${obstInner(b, opts)}</g>`;
 }
@@ -956,7 +968,7 @@ function obstLabel(b) {
 function itemSvg(b, opts) {
   if (isTv(b)) return `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${tvInner(b, opts)}</g>`;
   if (isCurtain(b)) return `<g class="bed item curtain" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${curtainInner(b, opts)}</g>`;
-  if (b.kind === 'prekazka') return obstSvg(b, opts);
+  if (isObst(b)) return obstSvg(b, opts);
   let g = `<g class="bed item" data-bed="${b.id}" transform="translate(${b.x},${-b.y}) rotate(${b.rot})">${itemInner(b, opts)}</g>`;
   const fs = px(9.5), txt = b.label || `${Math.round(b.w * 100)}×${Math.round(b.l * 100)}`;
   if (Math.min(b.w, b.l) / ui.k > 26) g += `<text class="bed-lbl" x="${b.x}" y="${-b.y + fs * 0.35}" font-size="${fs}" text-anchor="middle" style="fill:#7a3d18;paint-order:stroke;stroke:#f3e3d3;stroke-width:${px(3)}">${esc(txt)}</text>`;
@@ -1084,13 +1096,13 @@ function renderPlan(opts) {
     s += `<g style="pointer-events:none">${edgeDims(R)}</g>`;
     const solid = itemsOf(sc, fk).filter(o => !isSoft(o)), tvs = itemsOf(sc, fk).filter(isTv), curt = itemsOf(sc, fk).filter(isCurtain);
     s += '<g id="beds">' + solid.concat(sc.beds[fk] || [], tvs, curt).filter(inRoom).map(b => bedSvg(b, { bad: badIds.has(b.id), sel: isSel(b) })).join('') + '</g>';
-    s += '<g id="olabels">' + solid.filter(b => b.kind === 'prekazka' && inRoom(b)).map(obstLabel).join('') + tvs.filter(inRoom).map(tvLabel).join('') + curt.filter(inRoom).map(curtainLabel).join('') + curtainJoints(curt.filter(inRoom)) + '</g>';
+    s += '<g id="olabels">' + solid.filter(b => isObst(b) && inRoom(b)).map(obstLabel).join('') + tvs.filter(inRoom).map(tvLabel).join('') + curt.filter(inRoom).map(curtainLabel).join('') + curtainJoints(curt.filter(inRoom)) + '</g>';
     const selB = ui.sel && ui.sel.type === 'bed' ? findBed(ui.sel.id) : null;
     s += `<g id="gaps" class="gaps">${selB && selB.fk === fk && inRoom(selB.b) ? bedGaps(fk, selB.b, R) : ''}</g>`;
   } else {
     s += staticLayer(fk) + notesLayer(fk);
     s += '<g id="beds">' + itemsOf(sc, fk).filter(o => !isSoft(o)).concat(sc.beds[fk] || [], itemsOf(sc, fk).filter(isTv), itemsOf(sc, fk).filter(isCurtain)).map(b => bedSvg(b, { bad: badIds.has(b.id) })).join('') + '</g>';
-    s += '<g>' + itemsOf(sc, fk).filter(b => b.kind === 'prekazka').map(obstLabel).join('') + '</g>';
+    s += '<g>' + itemsOf(sc, fk).filter(isObst).map(obstLabel).join('') + '</g>';
     s += f.rooms.map(r => roomLabels(sc, a, ca, r, fk)).join('');
   }
   s += `<g id="guides" fill="none" stroke="${ACC}" stroke-width="1.5" stroke-dasharray="6 4"></g>`;
@@ -1143,7 +1155,7 @@ function render() {
     const prev = i > 0 ? list[i - 1] : (i === -1 ? list[0] : null), next = i >= 0 && i < list.length - 1 ? list[i + 1] : null;
     const groups = VIEWS.map(v => `<optgroup label="${v.label}">${Object.keys(ROOMS).filter(id => viewOfRoom(id) === v.k && (roomMeta(sc, id).name || (a.rooms[id] && a.rooms[id].n))).sort().map(id => `<option value="${id}"${id === ui.room ? ' selected' : ''}>${id} ${esc(roomMeta(sc, id).name)}</option>`).join('')}</optgroup>`).join('');
     toolbar = `<div class="group"><button id="goOv">← Přehled</button><button id="rPrev"${prev ? ` data-open="${prev}"` : ' disabled'} aria-label="Předchozí pokoj">‹</button><select id="roomSel" aria-label="Místnost">${groups}</select><button id="rNext"${next ? ` data-open="${next}"` : ' disabled'} aria-label="Další pokoj">›</button></div>
-      <div class="group"><button id="rAdd2" title="Přidat lůžko 210 × 100 cm">+ Lůžko</button><button id="rAddP" title="Přidat překážku (sloup, radiátor…)">+ Překážka</button><button id="mCurt" class="${ui.mode === 'curtain' ? 'on' : ''}" title="Nakreslit závěs (tyč) dvěma kliknutími">+ Závěs</button><select id="addTv" aria-label="Přidat televizi"><option value="">+ TV…</option>${TV_SIZES.map(([d, w]) => `<option value="${w}">TV ${d}″ (šířka ${w} cm)</option>`).join('')}</select><select id="addSk" aria-label="Přidat skříň"><option value="">+ Skříň…</option>${SK_D.map(d => SK_W.map(w => `<option value="${w}x${d}">skříň ${w} × ${d} cm</option>`).join('')).join('')}</select><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="ctxT" class="${ui.ctx ? 'on' : ''}" title="Zobrazí i sousední místnosti">Okolí</button></div>
+      <div class="group"><button id="rAdd2" title="Přidat lůžko 210 × 100 cm">+ Lůžko</button><button id="rAddP" title="Přidat překážku (sloup, radiátor…)">+ Překážka</button><button id="mCurt" class="${ui.mode === 'curtain' ? 'on' : ''}" title="Nakreslit závěs (tyč) dvěma kliknutími">+ Závěs</button><select id="addFurn" aria-label="Přidat stůl nebo židli"><option value="">+ Nábytek…</option>${FURN.map((f, i) => `<option value="${i}">${f[3][0].toUpperCase() + f[3].slice(1)} ${f[1]} × ${f[2]} cm</option>`).join('')}</select><select id="addTv" aria-label="Přidat televizi"><option value="">+ TV…</option>${TV_SIZES.map(([d, w]) => `<option value="${w}">TV ${d}″ (šířka ${w} cm)</option>`).join('')}</select><select id="addSk" aria-label="Přidat skříň"><option value="">+ Skříň…</option>${SK_D.map(d => SK_W.map(w => `<option value="${w}x${d}">skříň ${w} × ${d} cm</option>`).join('')).join('')}</select><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="ctxT" class="${ui.ctx ? 'on' : ''}" title="Zobrazí i sousední místnosti">Okolí</button></div>
       <div class="group"><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pokoj</button></div>`;
     hint = ui.mode === 'curtain' ? 'Závěs: klikni na začátek a konec tyče. Konce se chytají zdí, rohů a jiných závěsů (s Alt bez chytání), se Shiftem jen vodorovně nebo svisle. Můžeš kreslit další, Esc kreslení ukončí.' : ui.mode === 'measure' ? 'Klikni na první a druhý bod. Body se chytají rohů a hran zdí i lůžek, s Alt bez chytání. Esc měření zruší.' : 'Předměty táhni myší, přichytí se ke zdi, k jiným předmětům a k mřížce 5 cm (s Alt volně po 1 cm). R otočí, Delete smaže, šipky posunou o 5 cm. Čísla u stěn jsou délky v cm, u vybraného lůžka vzdálenosti ke stěnám.';
   } else {
@@ -1175,6 +1187,7 @@ function render() {
       <span><i style="background:${SEX.Z.solid};border-color:${SEX.Z.solid}"></i><i style="background:${SEX.M.solid};border-color:${SEX.M.solid}"></i>zvýrazněné</span>
       <span><i style="background:#f3e3d3;border-color:#a0522d"></i>skříň</span>
       <span><i style="background:#4a4f52;border-color:#4a4f52"></i>překážka</span>
+      <span><i style="background:#8a6a45;border-color:#8a6a45"></i>stůl</span><span><i style="background:#5d7386;border-color:#5d7386"></i>židle</span>
       <span><i style="background:none;border:0;border-top:3px dashed #7b2d8b;height:0;width:18px;vertical-align:middle"></i>závěs</span>
       <span><i style="background:none;border:0;border-top:1.5px solid #7b2d8b;height:0;width:18px;vertical-align:middle"></i>tyč</span>
       <span><i style="background:#1d2427;border-color:#1d2427;border-bottom:3px solid #4fb3e8;height:6px"></i>TV</span>
@@ -1232,7 +1245,7 @@ function detailAside(sc, a, ch) {
 function roomCard(sc, a) {
   const ro = sync.readOnly ? ' disabled' : '';
   const r = ROOMS[ui.room], m = roomMeta(sc, r.id), o = a.rooms[r.id] || { n: 0, Z: 0, M: 0, U: 0 };
-  const extra = [o.zv ? `${o.zv} ${o.zv === 1 ? 'závěs' : o.zv < 5 ? 'závěsy' : 'závěsů'}` : '', o.tv ? `${o.tv} TV` : '', o.sk ? `${o.sk} ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}` : '', o.pk ? `${o.pk} ${o.pk === 1 ? 'překážka' : o.pk < 5 ? 'překážky' : 'překážek'}` : ''].filter(Boolean).join(' · ');
+  const extra = [o.zv ? `${o.zv} ${o.zv === 1 ? 'závěs' : o.zv < 5 ? 'závěsy' : 'závěsů'}` : '', o.tv ? `${o.tv} TV` : '', o.nb ? `${o.nb}× stůl/židle` : '', o.sk ? `${o.sk} ${o.sk === 1 ? 'skříň' : o.sk < 5 ? 'skříně' : 'skříní'}` : '', o.pk ? `${o.pk} ${o.pk === 1 ? 'překážka' : o.pk < 5 ? 'překážky' : 'překážek'}` : ''].filter(Boolean).join(' · ');
   const sexLine = o.n ? `Ž ${o.Z} · M ${o.M}${o.U ? ' · ? ' + o.U : ''}` : 'žádné';
   return `<div class="card compact roomcard">
     <div class="rc-head">
@@ -1274,7 +1287,7 @@ function obstCard(sc, f) {
   const ro = sync.readOnly ? ' disabled' : '';
   const b = f.b, fit = bedFits(f.fk, b);
   const targets = roomNavList().filter(id => id !== (fit.room && fit.room.id));
-  return `<div class="card compact selcard"><h2>Vybraná překážka<span>${Math.round(b.w * 100)} × ${Math.round(b.l * 100)} cm</span></h2>
+  return `<div class="card compact selcard"><h2>${b.kind === 'stul' ? 'Vybraný stůl' : b.kind === 'zidle' ? 'Vybraná židle' : 'Vybraná překážka'}<span>${Math.round(b.w * 100)} × ${Math.round(b.l * 100)} cm</span></h2>
     <div class="field"><label for="obLbl">Popis</label><input id="obLbl" type="text" maxlength="40" value="${esc(b.label)}" placeholder="např. sloup, radiátor, umyvadlo"${ro}></div>
     <div class="row field"><label for="obW">Šířka</label><input id="obW" type="number" min="5" max="1000" step="5" value="${Math.round(b.w * 100)}" style="width:76px"${ro}><label for="obL">Délka</label><input id="obL" type="number" min="5" max="1000" step="5" value="${Math.round(b.l * 100)}" style="width:76px"${ro}><span class="hint">cm</span></div>
     <div class="row"><button id="bRot"${ro}>Otočit</button><button id="bDup"${ro}>Duplikovat</button><button id="bDel" class="danger"${ro}>Smazat</button></div>
@@ -1310,7 +1323,7 @@ function tvCard(sc, f) {
 function itemCard(sc, f) {
   if (isTv(f.b)) return tvCard(sc, f);
   if (isCurtain(f.b)) return curtainCard(sc, f);
-  if (f.b.kind === 'prekazka') return obstCard(sc, f);
+  if (isObst(f.b)) return obstCard(sc, f);
   const ro = sync.readOnly ? ' disabled' : '';
   const b = f.b, fit = bedFits(f.fk, b), wcm = Math.round(b.w * 100), dcm = Math.round(b.l * 100);
   const targets = roomNavList().filter(id => id !== (fit.room && fit.room.id));
@@ -1402,6 +1415,7 @@ function bind() {
   on('#ctxT', 'click', () => { ui.ctx = !ui.ctx; saveUi(); render(); });
   on('#addSk', 'change', e => { const v = e.target.value; if (!v) return; const [w, d] = v.split('x').map(Number); const r = ROOMS[ui.room]; addItem(r.floor, r, w, d); });
   on('#mCurt', 'click', () => { ui.mode = ui.mode === 'curtain' ? 'select' : 'curtain'; ui.draft = null; ui.measure = null; render(); });
+  on('#addFurn', 'change', e => { if (e.target.value === '') return; const r = ROOMS[ui.room]; addFurn(r.floor, r, +e.target.value); });
   on('#addTv', 'change', e => { const w = +e.target.value; if (!w) return; const r = ROOMS[ui.room]; addTv(r.floor, r, w); });
   on('#rAddP', 'click', () => { const r = ROOMS[ui.room]; addObstacle(r.floor, r); });
   on('#rAdd2', 'click', () => { const r = ROOMS[ui.room]; addBed(r.floor, r, r.ip[0], r.ip[1]); });
@@ -1481,7 +1495,7 @@ function rotateSel() {
   if (!ui.sel || ui.sel.type !== 'bed') return; const f = findBed(ui.sel.id); if (!f) return;
   change(() => {
     const b = f.b, r = bedRoom(f.fk, b); b.rot = (b.rot + 90) % 360;
-    if (b.kind === 'prekazka' || isSoft(b)) return;
+    if (isObst(b) || isSoft(b)) return;
     if (b.kind && !freeAt(f.fk, b) && r) { const nb = findSpotWall(f.fk, r, Object.assign({}, b), b.x, b.y, [b.rot]); if (nb && Math.hypot(nb.x - b.x, nb.y - b.y) < 2) { b.x = nb.x; b.y = nb.y; } return; }
     if (!freeAt(f.fk, b) && r) { const nb = findSpot(f.fk, r, b.x, b.y, Object.assign({}, b), [b.rot]); if (nb && Math.hypot(nb.x - b.x, nb.y - b.y) < 1.6) { b.x = nb.x; b.y = nb.y; } }
   });
@@ -1548,7 +1562,7 @@ function bindPlan() {
     }
     if (drag) {
       if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 3) return;
-      if (!drag.moved) { const ol = document.getElementById('olabels'); if (ol && drag.b.kind === 'prekazka') ol.style.display = 'none'; }
+      if (!drag.moved) { const ol = document.getElementById('olabels'); if (ol && isObst(drag.b)) ol.style.display = 'none'; }
       drag.moved = true; ui.dragging = true; drag.el.classList.add('drag');
       const p = svgPt(svg, e), rx = p.x - drag.ox, ry = p.y - drag.oy;
       const s = (e.altKey || isCurtain(drag.b)) ? { x: +(Math.round(rx / 0.01) * 0.01).toFixed(3), y: +(Math.round(ry / 0.01) * 0.01).toFixed(3), guides: [] } : snapBed(drag.fk, drag.b, rx, ry);

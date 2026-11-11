@@ -32,7 +32,7 @@ service cloud.firestore {
       allow create, update: if request.resource.data.keys().hasOnly(['sid', 'fk', 'kind', 'x', 'y', 'rot', 'w', 'l', 'label'])
         && str(request.resource.data.sid, 40)
         && request.resource.data.fk in ['1NP', '2NP', '3NP']
-        && request.resource.data.kind in ['skrin', 'prekazka', 'zaves', 'tv']
+        && request.resource.data.kind in ['skrin', 'prekazka', 'zaves', 'tv', 'stul', 'zidle']
         && num(request.resource.data.x) && num(request.resource.data.y)
         && (request.resource.data.rot in [0, 90, 180, 270]
             || (request.resource.data.kind in ['zaves', 'tv'] && num(request.resource.data.rot) && request.resource.data.rot >= 0 && request.resource.data.rot < 360))
