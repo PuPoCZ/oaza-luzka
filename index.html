@@ -1929,7 +1929,7 @@ function kSheet(sc, id) {
   let area = 0; P.forEach((p, i) => { const c = P[(i + 1) % P.length]; area += p[0] * c[1] - c[0] * p[1]; }); area = Math.abs(area) / 2;
   const meta = roomMeta(sc, id), v = VIEW[viewOfRoom(id)];
   return `<section class="ksheet ${lay.o}">
-    <div class="khead"><div class="kt"><b>${esc(meta.name || 'Místnost')}</b><span>m. č. ${id} · ${esc(v.label)} · ${fmt(area, 1)} m²</span></div><div class="km">Oáza klidu o.p.s. · ${esc(sc.name)}<br>M 1:${s} · kóty v cm · ${new Date().toLocaleDateString('cs-CZ')}</div></div>
+    <div class="khead"><div class="kt"><b>${esc(meta.name || 'Místnost')}</b><span>m. č. ${id} · ${esc(v.label)} · ${fmt(area, 1)} m²</span></div><div class="km">Oáza klidu o.p.s.<br>M 1:${s} · kóty v cm · ${new Date().toLocaleDateString('cs-CZ')}</div></div>
     <svg class="kdraw" width="${SW}mm" height="${SH}mm" viewBox="0 0 ${SW} ${SH}" xmlns="http://www.w3.org/2000/svg">${gObj}${gRoom}${gSoft}${gDim}${gLbl}</svg>
     <table class="klist">${rows.map(r => `<tr><th>${r[0]}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>
     <div class="kfoot">Řetězce podél stěn kótují předměty u stěny, konce závěsových tyčí (plná tečka) a střed televize na rameni (TV), vnější kóta je délka stěny. Kóty uvnitř jsou odstupy a průchody. U skříní je silnou čarou vyznačené čelo. Podklad je digitalizovaný půdorys, rozměry stavby před montáží ověřit na místě.</div>
