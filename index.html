@@ -1768,7 +1768,7 @@ function kRooms(sc, scope) {
     const r = ROOMS[id];
     if (scope && scope.room) return id === scope.room;
     if (scope && scope.view && viewOfRoom(id) !== scope.view) return false;
-    return kObjs(sc, r).beds.length > 0;
+    return roomMeta(sc, id).use === 'pokoj' && kObjs(sc, r).beds.length > 0; // jen místnosti vedené jako pokoj klientů
   });
 }
 function kSheet(sc, id) {
