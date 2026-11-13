@@ -1802,7 +1802,7 @@ function kSheet(sc, id) {
       const g = gaps.get(o), along = o.rot % 180 === 0, wd = d => g[d] && g[d].wall ? g[d].d : 99;
       const back = along ? (wd(2) <= wd(3) ? 2 : 3) : (wd(1) <= wd(0) ? 1 : 0), i = 0.7;
       gObj += back === 2 ? ln(x, y + h - i, x + w, y + h - i, 0.5) : back === 3 ? ln(x, y + i, x + w, y + i, 0.5) : back === 1 ? ln(x + w - i, y, x + w - i, y + h, 0.5) : ln(x + i, y, x + i, y + h, 0.5);
-      const l1 = `${kcm(o.w)}×${kcm(o.l)}`, l2 = /vysok/i.test(o.label) ? 'vysoká' : /n[ií]zk/i.test(o.label) ? 'nízká' : (o.label || ''), fs = 1.9, rot = tall ? -90 : 0;
+      const l1 = `${kcm(o.w)}×${kcm(o.l)}`, l2 = /vysok/i.test(o.label) ? 'skříň' : /komod|n[ií]zk/i.test(o.label) ? 'komoda' : (o.label || ''), fs = 1.9, rot = tall ? -90 : 0;
       const short = Math.min(w, h), two = l2 && short > 6.5 && tw(l2, fs) < Math.max(w, h) - 1;
       if (tall) gLbl += two ? txt(cx - 0.5, cy, l1, fs, { rot }) + txt(cx + 1.9, cy, l2, fs, { rot }) : txt(cx + 0.7, cy, l1, fs, { rot });
       else gLbl += two ? txt(cx, cy - 0.4, l1, fs) + txt(cx, cy + 2, l2, fs) : txt(cx, cy + 0.7, l1, fs);
@@ -1918,10 +1918,11 @@ function kSheet(sc, id) {
   const bx = 1, by = SH - 1.5; gDim += ln(bx, by, bx + k, by, 0.3) + ln(bx, by - 1, bx, by + 0.3, 0.3) + ln(bx + k, by - 1, bx + k, by + 0.3, 0.3) + ln(bx + k / 2, by - 0.6, bx + k / 2, by + 0.3, 0.2) + txt(bx + k + 1.2, by + 0.3, '1 m', 2.1, { anchor: 'start' });
   // ---- výpis
   const cnt = arr => { const m = new Map(); arr.forEach(t => m.set(t, (m.get(t) || 0) + 1)); return [...m].map(([t, n]) => (n > 1 ? n + '× ' : '') + t).join(', '); };
-  const sk = items.filter(o => o.kind === 'skrin'), skName = o => `${/vysok/i.test(o.label) ? 'vysoká ' : /n[ií]zk/i.test(o.label) ? 'nízká ' : o.label ? o.label + ' ' : ''}${kcm(o.w)}×${kcm(o.l)}`;
+  const isKom = o => /komod|n[ií]zk/i.test(o.label || ''), skAll = items.filter(o => o.kind === 'skrin'), sk = skAll.filter(o => !isKom(o)), kom = skAll.filter(isKom), skName = o => `${o.label && !/vysok/i.test(o.label) ? o.label + ' ' : ''}${kcm(o.w)}×${kcm(o.l)}`;
   const rows = [];
   if (beds.length) rows.push(['Lůžka', `${beds.length}× ${kcm(beds[0].l)}×${kcm(beds[0].w)}`]);
   if (sk.length) rows.push(['Skříně (š×h)', cnt(sk.map(skName).sort())]);
+  if (kom.length) rows.push(['Komody (noční stolky)', cnt(kom.map(o => `${kcm(o.w)}×${kcm(o.l)}`).sort())]);
   if (tvInfo.length) rows.push(['Televize', tvInfo.map(v => v.name + (v.d == null ? '' : v.ang > 8 ? `, na rameni, střed ${kcm(v.d)} cm od stěny, natočení ${v.ang}°` : v.d > 0.12 ? `, rovnoběžně se stěnou, ${kcm(v.d)} cm od ní` : ', na stěně')).join('; ')]);
   const cs = curts.filter(b => !isRod(b)), rods = curts.filter(isRod);
   if (curts.length) rows.push(['Závěsy', (cs.length ? 'závěs ' + cs.map(b => kcm(b.w)).join(' + ') + ' cm' : '') + (rods.length ? (cs.length ? ', ' : '') + 'tyč bez závěsu ' + rods.map(b => kcm(b.w)).join(' + ') + ' cm' : '') + `, tyče celkem ${kcm(curts.reduce((a, b) => a + b.w, 0))} cm, výška cca 220 cm`]);
