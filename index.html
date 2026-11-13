@@ -249,7 +249,6 @@ header.top .pair { display: inline-flex; align-items: center; gap: 6px; white-sp
 .khead .km { font-size: 8pt; text-align: right; line-height: 1.3; }
 .kdraw { display: block; flex: none; }
 .kdraw text { fill: #000; }
-.kdraw text.kh { paint-order: stroke; stroke: #fff; stroke-width: .9px; stroke-linejoin: round; }
 .klist { border-collapse: collapse; width: 100%; font-size: 8.5pt; line-height: 1.3; flex: none; }
 .klist th { background: none; color: #000; border: 0; text-align: left; font-weight: 600; white-space: nowrap; padding: .6mm 3mm .6mm 0; vertical-align: top; width: 1%; }
 .klist td { padding: .6mm 0; border: 0; background: none; color: #000; }
@@ -1779,8 +1778,9 @@ function kSheet(sc, id) {
   const s = lay.s, k = 1000 / s, SW = lay.aw, SH = lay.ah, ox = (SW - W * k) / 2, oy = (SH - H * k) / 2;
   const X = x => ox + (x - minx) * k, Y = y => oy + (maxy - y) * k, f2 = v => Math.round(v * 100) / 100;
   const ln = (x1, y1, x2, y2, sw, extra) => `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="#000" stroke-width="${sw}"${extra || ''}/>`;
-  const txt = (x, y, t, fs, o) => { o = o || {}; return `<text x="${f2(x)}" y="${f2(y)}" font-size="${fs}" text-anchor="${o.anchor || 'middle'}"${o.rot ? ` transform="rotate(${o.rot} ${f2(x)} ${f2(y)})"` : ''}${o.halo ? ' class="kh"' : ''}${o.bold ? ' font-weight="600"' : ''}${o.fill ? ` fill="${o.fill}"` : ''}>${esc(t)}</text>`; };
   const tw = (t, fs) => String(t).length * fs * 0.56;
+  // podklad pod textem je bílý obdélník, ne obtažené písmo: obtah některé prohlížeče PDF vykreslí černě
+  const txt = (x, y, t, fs, o) => { o = o || {}; const tr = o.rot ? ` transform="rotate(${o.rot} ${f2(x)} ${f2(y)})"` : '', w = tw(t, fs) * (o.bold ? 1.08 : 1) + 0.5; return (o.halo ? `<rect x="${f2(o.anchor === 'start' ? x - 0.25 : x - w / 2)}" y="${f2(y - fs * 0.8)}" width="${f2(w)}" height="${f2(fs * 0.92)}" fill="#fff"${tr}/>` : '') + `<text x="${f2(x)}" y="${f2(y)}" font-size="${fs}" text-anchor="${o.anchor || 'middle'}"${tr}${o.bold ? ' font-weight="600"' : ''}>${esc(t)}</text>`; };
   const rectOf = B => [X(B[0]), Y(B[3]), (B[2] - B[0]) * k, (B[3] - B[1]) * k];
   const solidItems = items.filter(o => !isSoft(o)), curts = items.filter(isCurtain), tvs = items.filter(isTv);
   const movers = beds.concat(solidItems.filter(o => o.kind !== 'prekazka')), allSolid = beds.concat(solidItems), boxOf = new Map(allSolid.map(o => [o, bedBox(o)])), boxes = allSolid.map(o => boxOf.get(o));
