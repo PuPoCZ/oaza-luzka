@@ -231,6 +231,39 @@ header.top .pair { display: inline-flex; align-items: center; gap: 6px; white-sp
 .tvseg button { padding: 5px 4px; font-size: 12.5px; }
 .rotseg { margin-left: 6px; }
 .rotseg button { padding: 5px 7px; font-size: 12.5px; }
+
+/* ===== Kóty: tiskové listy ===== */
+.kpage { background: #d9dcdd; min-height: 100vh; padding: 0 0 24px; color: #000; }
+.kbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--line); }
+.kbar .kscope { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; }
+.kbar .kscope a { color: var(--ink); text-underline-offset: 3px; }
+.kbar .kscope a.on { font-weight: 600; text-decoration: none; }
+.kbar .khint { font-size: 12.5px; color: var(--muted); }
+.kempty { padding: 24px 16px; }
+.ksheet { box-sizing: border-box; background: #fff; color: #000; margin: 16px auto; padding: 10mm; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
+.ksheet.port { width: 210mm; height: 297mm; }
+.ksheet.land { width: 297mm; height: 210mm; }
+.khead { display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; height: 11mm; border-bottom: .3mm solid #000; padding-bottom: 1.5mm; box-sizing: border-box; flex: none; }
+.khead .kt b { font-size: 15pt; font-weight: 600; margin-right: 3mm; }
+.khead .kt span { font-size: 9pt; }
+.khead .km { font-size: 8pt; text-align: right; line-height: 1.3; }
+.kdraw { display: block; flex: none; }
+.kdraw text { fill: #000; }
+.kdraw text.kh { paint-order: stroke; stroke: #fff; stroke-width: .9px; stroke-linejoin: round; }
+.klist { border-collapse: collapse; width: 100%; font-size: 8.5pt; line-height: 1.3; flex: none; }
+.klist th { background: none; color: #000; border: 0; text-align: left; font-weight: 600; white-space: nowrap; padding: .6mm 3mm .6mm 0; vertical-align: top; width: 1%; }
+.klist td { padding: .6mm 0; border: 0; background: none; color: #000; }
+.klist tr { border-top: .15mm solid #999; }
+.kfoot { margin-top: auto; font-size: 7pt; line-height: 1.3; color: #333; border-top: .15mm solid #999; padding-top: 1mm; }
+@page kport { size: A4 portrait; margin: 0; }
+@page kland { size: A4 landscape; margin: 0; }
+@media print {
+  .kbar { display: none; }
+  .kpage { background: #fff; padding: 0; min-height: 0; }
+  .ksheet { margin: 0; box-shadow: none; break-after: page; }
+  .ksheet.port { page: kport; }
+  .ksheet.land { page: kland; }
+}
 </style>
 <script type="text/plain" id="head-tpl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Rozmístění lůžek Oáza klidu</title><meta name="robots" content="noindex, nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&amp;family=IBM+Plex+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"></script>
 <script>
@@ -1145,6 +1178,7 @@ function roomNavList() {
 }
 function render() {
   ui.needRender = false;
+  if (ui.page === 'koty') { renderKoty(); return; }
   if (ui.page === 'room' && !ROOMS[ui.room]) ui.page = 'overview';
   ui.k = calcK(ui.vb);
   const sc = scen(), a = analyse(sc), ch = checks(sc, a);
@@ -1156,11 +1190,13 @@ function render() {
     const groups = VIEWS.map(v => `<optgroup label="${v.label}">${Object.keys(ROOMS).filter(id => viewOfRoom(id) === v.k && (roomMeta(sc, id).name || (a.rooms[id] && a.rooms[id].n))).sort().map(id => `<option value="${id}"${id === ui.room ? ' selected' : ''}>${id} ${esc(roomMeta(sc, id).name)}</option>`).join('')}</optgroup>`).join('');
     toolbar = `<div class="group"><button id="goOv">← Přehled</button><button id="rPrev"${prev ? ` data-open="${prev}"` : ' disabled'} aria-label="Předchozí pokoj">‹</button><select id="roomSel" aria-label="Místnost">${groups}</select><button id="rNext"${next ? ` data-open="${next}"` : ' disabled'} aria-label="Další pokoj">›</button></div>
       <div class="group"><button id="rAdd2" title="Přidat lůžko 210 × 100 cm">+ Lůžko</button><button id="rAddP" title="Přidat překážku (sloup, radiátor…)">+ Překážka</button><button id="mCurt" class="${ui.mode === 'curtain' ? 'on' : ''}" title="Nakreslit závěs (tyč) dvěma kliknutími">+ Závěs</button><select id="addFurn" aria-label="Přidat stůl nebo židli"><option value="">+ Nábytek…</option>${FURN.map((f, i) => `<option value="${i}">${f[3][0].toUpperCase() + f[3].slice(1)} ${f[1]} × ${f[2]} cm</option>`).join('')}</select><select id="addTv" aria-label="Přidat televizi"><option value="">+ TV…</option>${TV_SIZES.map(([d, w]) => `<option value="${w}">TV ${d}″ (šířka ${w} cm)</option>`).join('')}</select><select id="addSk" aria-label="Přidat skříň"><option value="">+ Skříň…</option>${SK_D.map(d => SK_W.map(w => `<option value="${w}x${d}">skříň ${w} × ${d} cm</option>`).join('')).join('')}</select><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="ctxT" class="${ui.ctx ? 'on' : ''}" title="Zobrazí i sousední místnosti">Okolí</button></div>
-      <div class="group"><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pokoj</button></div>`;
+      <div class="group"><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pokoj</button></div>
+      <div class="group"><button id="kOpen" title="Tiskový detail pokoje s kótami v měřítku">Kóty</button></div>`;
     hint = ui.mode === 'curtain' ? 'Závěs: klikni na začátek a konec tyče. Konce se chytají zdí, rohů a jiných závěsů (s Alt bez chytání), se Shiftem jen vodorovně nebo svisle. Můžeš kreslit další, Esc kreslení ukončí.' : ui.mode === 'measure' ? 'Klikni na první a druhý bod. Body se chytají rohů a hran zdí i lůžek, s Alt bez chytání. Esc měření zruší.' : 'Předměty táhni myší, přichytí se ke zdi, k jiným předmětům a k mřížce 5 cm (s Alt volně po 1 cm). R otočí, Delete smaže, šipky posunou o 5 cm. Čísla u stěn jsou délky v cm, u vybraného lůžka vzdálenosti ke stěnám.';
   } else {
     toolbar = `<div class="group" role="tablist" aria-label="Část budovy">${VIEWS.map(v => `<button class="floor-tab${ui.view === v.k ? ' on' : ''}" data-view="${v.k}" role="tab" aria-selected="${ui.view === v.k}">${v.label}<b>${viewCount(a, v.k)}</b></button>`).join('')}</div>
-      <div class="group"><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pohled</button></div>`;
+      <div class="group"><button id="mMeas" class="${ui.mode === 'measure' ? 'on' : ''}">Metr</button><button id="zIn" aria-label="Přiblížit">+</button><button id="zOut" aria-label="Oddálit">−</button><button id="zFit">Celý pohled</button></div>
+      <div class="group"><button id="kOpen" title="Tiskové detaily pokojů s kótami v měřítku">Kóty</button></div>`;
     hint = ui.mode === 'measure' ? 'Klikni na první a druhý bod. Body se chytají rohů a hran zdí i lůžek, s Alt bez chytání. Esc měření zruší.' : 'Klikni na místnost a otevře se její detail s mřížkou, kde jde rozmisťovat lůžka. Kolečko přibližuje, tažením posuneš výkres.';
   }
   let h = `<header class="top">
@@ -1381,7 +1417,10 @@ function openOverview(view) {
 function setHash(h) { try { if (location.hash.slice(1) !== h) history.replaceState(null, '', '#' + h); } catch (e) { /* */ } }
 function routeFromHash() {
   const h = (location.hash || '').slice(1);
-  let m = h.match(/^pokoj-(\d)-(\d\d)$/);
+  let m = h.match(/^koty(?:-(.+))?$/);
+  if (m) { const t = m[1] || '', rm = t.match(/^(\d)-(\d\d)$/), vw = VIEWS.find(x => x.k.toLowerCase() === t); ui.page = 'koty'; ui.kscope = rm && ROOMS[rm[1] + '.' + rm[2]] ? { room: rm[1] + '.' + rm[2] } : vw ? { view: vw.k } : null; return; }
+  if (ui.page === 'koty') ui.page = 'overview';
+  m = h.match(/^pokoj-(\d)-(\d\d)$/);
   if (m && ROOMS[m[1] + '.' + m[2]]) { const id = m[1] + '.' + m[2]; ui.page = 'room'; ui.room = id; ui.view = viewOfRoom(id); ui.vb = roomVB(id); return; }
   m = h.match(/^prehled-(.+)$/);
   const v = m && VIEWS.find(x => x.k.toLowerCase() === m[1]);
@@ -1409,6 +1448,7 @@ function bind() {
   document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => openOverview(b.dataset.view)));
   document.querySelectorAll('[data-goview]').forEach(b => b.addEventListener('click', () => openOverview(b.dataset.goview)));
   on('#goOv', 'click', () => openOverview());
+  on('#kOpen', 'click', () => openKoty(ui.page === 'room' ? { room: ui.room } : { view: ui.view }));
   document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => openRoom(b.dataset.open)));
   on('#roomSel', 'change', e => openRoom(e.target.value));
   document.querySelectorAll('.minimap [data-goto]').forEach(p => p.addEventListener('click', () => openRoom(p.dataset.goto)));
@@ -1691,6 +1731,219 @@ async function downloadSvg() {
 }
 
 // ---------- start ----------
+/* KOTY-BEGIN */
+/* ===== Kóty: tiskové detaily místností (A4, přesné měřítko, kótovací řetězce) ===== */
+const K_SCALES = [20, 25, 30, 40, 50, 60, 75, 100], K_PAD = 16.5, K_C1 = 5, K_C2 = 12.5;
+const kcm = v => Math.round(v * 100);
+function kObjs(sc, r) {
+  const fk = r.floor, P = r.pts, e = 0.03;
+  const inR = o => { const br = bedRoom(fk, o); if (br) return br.id === r.id; const B = bedBox(o); return [[B[0] + e, B[1] + e], [B[2] - e, B[1] + e], [B[0] + e, B[3] - e], [B[2] - e, B[3] - e]].some(p => inPoly(p[0], p[1], P)); };
+  return { beds: (sc.beds[fk] || []).filter(inR), items: itemsOf(sc, fk).filter(inR) };
+}
+function kEdges(P) {
+  return P.map((a, i) => {
+    const c = P[(i + 1) % P.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1e-9, ux = (c[0] - a[0]) / L, uy = (c[1] - a[1]) / L;
+    let nx = -uy, ny = ux; if (inPoly((a[0] + c[0]) / 2 + nx * 0.05, (a[1] + c[1]) / 2 + ny * 0.05, P)) { nx = -nx; ny = -ny; }
+    return { a, c, L, ux, uy, nx, ny };
+  }).filter(e => e.L > 0.02);
+}
+// poloha bodu vůči stěně: t podél stěny od jejího začátku, d dovnitř místnosti
+function kTD(e, p) { const dx = p[0] - e.a[0], dy = p[1] - e.a[1]; return [dx * e.ux + dy * e.uy, -(dx * e.nx + dy * e.ny)]; }
+function kBoxTD(e, B) { const c = [[B[0], B[1]], [B[2], B[1]], [B[0], B[3]], [B[2], B[3]]].map(p => kTD(e, p)); return [Math.min(...c.map(x => x[0])), Math.max(...c.map(x => x[0])), Math.min(...c.map(x => x[1])), Math.max(...c.map(x => x[1]))]; }
+function kGapDir(P, boxes, B, dir) {
+  // nejbližší stěna nebo předmět před celou stranou obdélníku; dir 0 = východ, 1 = západ, 2 = sever, 3 = jih
+  const hor = dir < 2, sgn = dir === 0 || dir === 2 ? 1 : -1, s = hor ? (sgn > 0 ? B[2] : B[0]) : (sgn > 0 ? B[3] : B[1]), lo = hor ? B[1] : B[0], hi = hor ? B[3] : B[2];
+  let best = null;
+  const consider = (coord, a, b, wall, idx) => { const o0 = Math.max(lo, a), o1 = Math.min(hi, b); if (o1 - o0 < 0.05) return; const d = (coord - s) * sgn; if (d < -0.03) return; if (!best || d < best.d - 1e-6) best = { d: Math.max(0, d), pos: (o0 + o1) / 2, wall, idx }; };
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], c = P[(i + 1) % P.length];
+    if (hor && Math.abs(a[0] - c[0]) < 1e-3) consider(a[0], Math.min(a[1], c[1]), Math.max(a[1], c[1]), true, i);
+    if (!hor && Math.abs(a[1] - c[1]) < 1e-3) consider(a[1], Math.min(a[0], c[0]), Math.max(a[0], c[0]), true, i);
+  }
+  boxes.forEach((o, i) => { if (o === B) return; if (hor) consider(sgn > 0 ? o[0] : o[2], o[1], o[3], false, i); else consider(sgn > 0 ? o[1] : o[3], o[0], o[2], false, i); });
+  return best;
+}
+function kRooms(sc, scope) {
+  return Object.keys(ROOMS).sort().filter(id => {
+    const r = ROOMS[id];
+    if (scope && scope.room) return id === scope.room;
+    if (scope && scope.view && viewOfRoom(id) !== scope.view) return false;
+    return kObjs(sc, r).beds.length > 0;
+  });
+}
+function kSheet(sc, id) {
+  const r = ROOMS[id], fk = r.floor, P = r.pts, E = kEdges(P), { beds, items } = kObjs(sc, r);
+  const xs = P.map(p => p[0]), ys = P.map(p => p[1]), minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys), W = maxx - minx, H = maxy - miny;
+  // formát a měřítko: největší měřítko, které se vejde, při shodě na výšku
+  const lay = [['port', 190, 213], ['land', 277, 126]].map(([o, aw, ah]) => ({ o, aw, ah, s: K_SCALES.find(s => W * 1000 / s + 2 * K_PAD <= aw && H * 1000 / s + 2 * K_PAD <= ah) || 150 })).sort((a, b) => a.s - b.s)[0];
+  const s = lay.s, k = 1000 / s, SW = lay.aw, SH = lay.ah, ox = (SW - W * k) / 2, oy = (SH - H * k) / 2;
+  const X = x => ox + (x - minx) * k, Y = y => oy + (maxy - y) * k, f2 = v => Math.round(v * 100) / 100;
+  const ln = (x1, y1, x2, y2, sw, extra) => `<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" stroke="#000" stroke-width="${sw}"${extra || ''}/>`;
+  const txt = (x, y, t, fs, o) => { o = o || {}; return `<text x="${f2(x)}" y="${f2(y)}" font-size="${fs}" text-anchor="${o.anchor || 'middle'}"${o.rot ? ` transform="rotate(${o.rot} ${f2(x)} ${f2(y)})"` : ''}${o.halo ? ' class="kh"' : ''}${o.bold ? ' font-weight="600"' : ''}${o.fill ? ` fill="${o.fill}"` : ''}>${esc(t)}</text>`; };
+  const tw = (t, fs) => String(t).length * fs * 0.56;
+  const rectOf = B => [X(B[0]), Y(B[3]), (B[2] - B[0]) * k, (B[3] - B[1]) * k];
+  const solidItems = items.filter(o => !isSoft(o)), curts = items.filter(isCurtain), tvs = items.filter(isTv);
+  const movers = beds.concat(solidItems.filter(o => o.kind !== 'prekazka')), allSolid = beds.concat(solidItems), boxOf = new Map(allSolid.map(o => [o, bedBox(o)])), boxes = allSolid.map(o => boxOf.get(o));
+  const gaps = new Map(allSolid.map(o => [o, [0, 1, 2, 3].map(d => kGapDir(P, boxes, boxOf.get(o), d))]));
+  const touch = (o, d) => { const g = gaps.get(o)[d]; return !!(g && g.wall && g.d < 0.06); };
+  let gObj = '', gLbl = '', gDim = '';
+  // ---- předměty
+  allSolid.forEach(o => {
+    const B = boxOf.get(o), [x, y, w, h] = rectOf(B), cx = x + w / 2, cy = y + h / 2, tall = h > w * 1.15;
+    if (!o.kind) {
+      gObj += `<rect x="${f2(x)}" y="${f2(y)}" width="${f2(w)}" height="${f2(h)}" fill="#f1f1f1" stroke="#000" stroke-width=".3"/>`;
+      const pl = 0.26 * k, m = 0.1 * k, hd = ((o.rot % 360) + 360) % 360; // polštář na straně hlavy
+      const pr = hd === 0 ? [x + m, y + m * 0.7, w - 2 * m, pl] : hd === 180 ? [x + m, y + h - m * 0.7 - pl, w - 2 * m, pl] : hd === 90 ? [x + w - m * 0.7 - pl, y + m, pl, h - 2 * m] : [x + m * 0.7, y + m, pl, h - 2 * m];
+      gObj += `<rect x="${f2(pr[0])}" y="${f2(pr[1])}" width="${f2(pr[2])}" height="${f2(pr[3])}" fill="#fff" stroke="#000" stroke-width=".18"/>`;
+      gLbl += txt(cx, cy - 0.4, 'lůžko', 2.1, { bold: 1 }) + txt(cx, cy + 2.2, `${kcm(o.l)}×${kcm(o.w)}`, 2);
+    } else if (o.kind === 'skrin') {
+      gObj += `<rect x="${f2(x)}" y="${f2(y)}" width="${f2(w)}" height="${f2(h)}" fill="#e3e3e3" stroke="#000" stroke-width=".3"/>`;
+      // čelo skříně je na straně od bližší stěny (podle polohy, ne podle otočení v plánovači)
+      const g = gaps.get(o), along = o.rot % 180 === 0, wd = d => g[d] && g[d].wall ? g[d].d : 99;
+      const back = along ? (wd(2) <= wd(3) ? 2 : 3) : (wd(1) <= wd(0) ? 1 : 0), i = 0.7;
+      gObj += back === 2 ? ln(x, y + h - i, x + w, y + h - i, 0.5) : back === 3 ? ln(x, y + i, x + w, y + i, 0.5) : back === 1 ? ln(x + w - i, y, x + w - i, y + h, 0.5) : ln(x + i, y, x + i, y + h, 0.5);
+      const l1 = `${kcm(o.w)}×${kcm(o.l)}`, l2 = /vysok/i.test(o.label) ? 'vysoká' : /n[ií]zk/i.test(o.label) ? 'nízká' : (o.label || ''), fs = 1.9, rot = tall ? -90 : 0;
+      const short = Math.min(w, h), two = l2 && short > 6.5 && tw(l2, fs) < Math.max(w, h) - 1;
+      if (tall) gLbl += two ? txt(cx - 0.5, cy, l1, fs, { rot }) + txt(cx + 1.9, cy, l2, fs, { rot }) : txt(cx + 0.7, cy, l1, fs, { rot });
+      else gLbl += two ? txt(cx, cy - 0.4, l1, fs) + txt(cx, cy + 2, l2, fs) : txt(cx, cy + 0.7, l1, fs);
+    } else if (o.kind === 'prekazka') {
+      gObj += `<rect x="${f2(x)}" y="${f2(y)}" width="${f2(w)}" height="${f2(h)}" fill="#b5b5b5" stroke="#000" stroke-width=".15"/>`;
+      const fs = 1.6, t = o.label || '';
+      if (t && Math.min(w, h) >= 2.2 && tw(t, fs) < Math.max(w, h) - 0.6) gLbl += txt(tall ? cx + 0.55 : cx, tall ? cy : cy + 0.55, t, fs, { rot: tall ? -90 : 0 });
+      else if (t) gLbl += txt(cx, cy + 0.55, t, fs, { halo: 1 });
+    } else {
+      gObj += `<rect x="${f2(x)}" y="${f2(y)}" width="${f2(w)}" height="${f2(h)}" fill="#fff" stroke="#000" stroke-width=".3"/>`;
+      if (o.kind === 'zidle') { const q = ((o.rot % 360) + 360) % 360, i = 0.9; gObj += q === 0 ? ln(x, y + i, x + w, y + i, 0.6) : q === 180 ? ln(x, y + h - i, x + w, y + h - i, 0.6) : q === 90 ? ln(x + w - i, y, x + w - i, y + h, 0.6) : ln(x + i, y, x + i, y + h, 0.6); }
+      const fs = 1.8, t = o.label || (o.kind === 'stul' ? 'stůl' : 'židle'), sz = `${kcm(o.w)}×${kcm(o.l)}`;
+      if (o.kind === 'stul' && h > 6) gLbl += txt(cx, cy - 0.3, t, fs) + txt(cx, cy + 1.9, sz, fs); else if (tw(t, fs) < Math.max(w, h) - 0.4) gLbl += txt(tall ? cx + 0.6 : cx, tall ? cy : cy + 0.6, t, fs, { rot: tall ? -90 : 0 });
+    }
+  });
+  // ---- obrys místnosti, okna, dveře
+  let gRoom = `<path d="M${P.map(p => f2(X(p[0])) + ',' + f2(Y(p[1]))).join('L')}Z" fill="none" stroke="#000" stroke-width=".7" stroke-linejoin="miter"/>`;
+  const pt = (e, t, off) => [X(e.a[0] + e.ux * t) + e.nx * off, Y(e.a[1] + e.uy * t) - e.ny * off];
+  E.forEach(e => {
+    FL[fk].windows.forEach(wn => {
+      const [t0, t1, d0, d1] = kBoxTD(e, wn); if (d1 < -0.75 || d0 > 0.1 || d1 > 0.25) return;
+      const a = Math.max(0, t0), b = Math.min(e.L, t1); if (b - a < 0.2) return;
+      const p1 = pt(e, a, 0), p2 = pt(e, b, 0), q1 = pt(e, a, 1.3), q2 = pt(e, b, 1.3);
+      gRoom += ln(p1[0], p1[1], p2[0], p2[1], 1, ' stroke="#fff"').replace('stroke="#000" ', '') + ln(p1[0], p1[1], p2[0], p2[1], 0.2) + ln(q1[0], q1[1], q2[0], q2[1], 0.2) + ln(p1[0], p1[1], q1[0], q1[1], 0.2) + ln(p2[0], p2[1], q2[0], q2[1], 0.2);
+    });
+    DOORS[fk].forEach(D => {
+      const j = [D.h[0] + D.u[0] * D.r, D.h[1] + D.u[1] * D.r], [th, dh] = kTD(e, D.h), [tj, dj] = kTD(e, j);
+      if (Math.abs(dh) > 0.7 || Math.abs(dj) > 0.7 || Math.abs(dh - dj) > 0.05 || Math.min(th, tj) < -0.05 || Math.max(th, tj) > e.L + 0.05) return;
+      const p1 = pt(e, th, 0), p2 = pt(e, tj, 0), rr = D.r * k, uxp = (p2[0] - p1[0]) / rr, uyp = (p2[1] - p1[1]) / rr, Lx = D.L[0], Ly = -D.L[1];
+      let arc = ''; for (let a = 0; a <= 90; a += 6) { const c = Math.cos(a * Math.PI / 180), si = Math.sin(a * Math.PI / 180); arc += (a ? 'L' : 'M') + f2(p1[0] + rr * (c * Lx + si * uxp)) + ',' + f2(p1[1] + rr * (c * Ly + si * uyp)); }
+      // dveře ven z místnosti a dveře zastavěné nábytkem (terasové, brané jako okno) se kreslí jen jako otvor
+      let blocked = false; for (let a = 0; a <= 90 && !blocked; a += 10) for (const f of [0.35, 0.65, 0.95]) { const c = Math.cos(a * Math.PI / 180), si = Math.sin(a * Math.PI / 180), wx = D.h[0] + D.r * f * (c * D.L[0] + si * D.u[0]), wy = D.h[1] + D.r * f * (c * D.L[1] + si * D.u[1]); if (boxes.some(B => wx > B[0] + 0.03 && wx < B[2] - 0.03 && wy > B[1] + 0.03 && wy < B[3] - 0.03)) { blocked = true; break; } }
+      const out = blocked || D.L[0] * e.nx + D.L[1] * e.ny > 0.3, q1 = pt(e, th, 1.3), q2 = pt(e, tj, 1.3);
+      gRoom += `<line x1="${f2(p1[0])}" y1="${f2(p1[1])}" x2="${f2(p2[0])}" y2="${f2(p2[1])}" stroke="#fff" stroke-width="1"/>` + (out ? ln(p1[0], p1[1], q1[0], q1[1], 0.3) + ln(p2[0], p2[1], q2[0], q2[1], 0.3) : ln(p1[0], p1[1], p1[0] + rr * Lx, p1[1] + rr * Ly, 0.3) + `<path d="${arc}" fill="none" stroke="#000" stroke-width=".15" stroke-dasharray="1 .8"/>`);
+    });
+  });
+  // ---- závěsy a televize
+  let gSoft = '';
+  const joints = [];
+  curts.forEach(b => {
+    const [p, q] = cEnds(b), x1 = X(p[0]), y1 = Y(p[1]), x2 = X(q[0]), y2 = Y(q[1]), L = Math.hypot(x2 - x1, y2 - y1) || 1, nx = -(y2 - y1) / L, ny = (x2 - x1) / L, rod = isRod(b);
+    gSoft += ln(x1, y1, x2, y2, rod ? 0.3 : 0.55, rod ? '' : ' stroke-dasharray="2.2 1.1"');
+    [[x1, y1], [x2, y2]].forEach(c => { gSoft += ln(c[0] - nx * 1.1, c[1] - ny * 1.1, c[0] + nx * 1.1, c[1] + ny * 1.1, 0.35); });
+    [p, q].forEach(c => { if (curts.some(o => o !== b && (() => { const [a1, a2] = cEnds(o); return segDist(c[0], c[1], a1[0], a1[1], a2[0], a2[1])[0] < 0.04; })()) && !joints.some(z => Math.hypot(z[0] - c[0], z[1] - c[1]) < 0.04)) joints.push(c); });
+    let ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI; if (ang > 90 || ang <= -90) ang += 180; if (Math.abs(ang - 90) < 1) ang = -90;
+    const a = ang * Math.PI / 180, mx = x1 + (x2 - x1) * 0.3, my = y1 + (y2 - y1) * 0.3, off = 1.3;
+    gLbl += txt(mx + Math.sin(a) * off, my - Math.cos(a) * off, `${rod ? 'tyč' : 'závěs'} ${kcm(b.w)}`, 2, { rot: f2(ang), halo: 1 });
+  });
+  joints.forEach(c => { gSoft += `<circle cx="${f2(X(c[0]))}" cy="${f2(Y(c[1]))}" r=".8" fill="#000"/>`; });
+  const tvInfo = [];
+  tvs.forEach(b => {
+    const [p, q] = cEnds(b), x1 = X(p[0]), y1 = Y(p[1]), x2 = X(q[0]), y2 = Y(q[1]), t = b.rot * Math.PI / 180, dx = -Math.sin(t), dy = Math.cos(t), cx = X(b.x), cy = Y(b.y);
+    gSoft += ln(x1, y1, x2, y2, 1.1) + `<path d="M${f2(cx + dx * 1.2 - dy * 1.3)},${f2(cy + dy * 1.2 + dx * 1.3)}L${f2(cx + dx * 1.2 + dy * 1.3)},${f2(cy + dy * 1.2 - dx * 1.3)}L${f2(cx + dx * 3)},${f2(cy + dy * 3)}Z" fill="#000"/>`;
+    const name = (b.label || '').replace(/\s*na rameni/i, '') || (() => { const z = TV_SIZES.find(t => Math.abs(t[1] / 100 - b.w) < 0.015); return z ? `TV ${z[0]}″` : `TV ${Math.round(b.w * 100)} cm`; })();
+    gLbl += txt(cx + dx * 5.2, cy + dy * 5.2 + 0.7, name, 2, { halo: 1, bold: 1 });
+    // nejbližší stěna: odstup středu a natočení vůči ní
+    let best = null; E.forEach(e => { const [tt, d] = kTD(e, [b.x, b.y]); if (tt > -0.1 && tt < e.L + 0.1 && d > -0.2 && (!best || d < best.d)) best = { d, e }; });
+    let ang = 0; if (best) { const ea = Math.atan2(best.e.uy, best.e.ux) * 180 / Math.PI, ta = -b.rot; ang = Math.abs(((ta - ea) % 180 + 270) % 180 - 90); }
+    tvInfo.push({ b, name, d: best ? Math.max(0, best.d) : null, ang: Math.round(ang), e: best && best.e });
+  });
+  // ---- kótovací řetězce podél stěn
+  const slash = (x, y) => ln(x - 0.75, y + 0.75, x + 0.75, y - 0.75, 0.3);
+  E.forEach(e => {
+    let raw = [[0, 0], [e.L, 0]]; const cl = t => Math.max(0, Math.min(e.L, t)); // [t, druh]: 0 hrana předmětu, 1 konec závěsové tyče, 2 střed televize na rameni
+    allSolid.forEach(o => { const [t0, t1, d0] = kBoxTD(e, boxOf.get(o)); if (d0 <= 0.12 && d0 > -0.35 && t1 > 0.03 && t0 < e.L - 0.03) raw.push([cl(t0), 0], [cl(t1), 0]); });
+    curts.forEach(b => cEnds(b).forEach(c => { const [t, d] = kTD(e, c); if (Math.abs(d) <= 0.15 && t > -0.06 && t < e.L + 0.06) raw.push([cl(t), 1]); }));
+    tvInfo.forEach(v => { if (v.e !== e || v.d > 0.6) return; if (v.ang <= 8) cEnds(v.b).forEach(c => raw.push([cl(kTD(e, c)[0]), 0])); else raw.push([cl(kTD(e, [v.b.x, v.b.y])[0]), 2]); });
+    raw.sort((a, b) => a[0] - b[0]);
+    const pts = [], kind = [];
+    raw.forEach(([t, kd]) => { const n = pts.length; if (n && t - pts[n - 1] <= 0.02) { if (kd > kind[n - 1]) kind[n - 1] = kd; if (e.L - t < 1e-6) pts[n - 1] = e.L; } else { pts.push(t); kind.push(kd); } });
+    const hor = Math.abs(e.ux) > 0.7, chains = pts.length > 2 ? [[K_C1, pts, 0], [K_C2, [0, e.L], 1]] : [[K_C1, [0, e.L], 1]];
+    if (e.L * k < 4) return;
+    chains.forEach(([off, tt, total]) => {
+      const a = pt(e, 0, off), b = pt(e, e.L, off); gDim += ln(a[0], a[1], b[0], b[1], 0.15);
+      tt.forEach((t, i) => {
+        const w0 = pt(e, t, 0.9), w1 = pt(e, t, off + 1.1), c = pt(e, t, off), kd = total ? 0 : kind[i];
+        gDim += ln(w0[0], w0[1], w1[0], w1[1], 0.1, ' stroke-opacity=".55"') + (kd === 1 ? `<circle cx="${f2(c[0])}" cy="${f2(c[1])}" r=".75" fill="#000"/>` : slash(c[0], c[1]));
+        if (kd === 2) { const q = pt(e, t, off + 2.6); gDim += txt(q[0], q[1] + 0.6, 'TV', 1.7, { halo: 1, bold: 1 }); }
+      });
+      let flip = 0;
+      for (let i = 0; i < tt.length - 1; i++) {
+        const lab = String(kcm(tt[i + 1] - tt[i])), fs = total ? 2.4 : 2.2, m = pt(e, (tt[i] + tt[i + 1]) / 2, off), room = (tt[i + 1] - tt[i]) * k, narrow = room < tw(lab, fs) + 0.5;
+        let dd = -0.7; if (narrow) { dd = flip % 2 ? -3.1 : fs * 0.74 + 0.6; flip++; } else flip = 0;
+        gDim += hor ? txt(m[0], m[1] + dd, lab, fs, { bold: total, halo: 1 }) : txt(m[0] + dd, m[1], lab, fs, { rot: -90, bold: total, halo: 1 });
+      }
+    });
+  });
+  // ---- vnitřní kóty: odstupy a průchody
+  const dims = [];
+  movers.forEach(o => {
+    const g = gaps.get(o), bed = !o.kind;
+    [0, 1, 2, 3].forEach(d => {
+      const q = g[d]; if (!q || q.d < 0.03 || q.d > 3.2) return;
+      const hor = d < 2, perp = hor ? [2, 3] : [0, 1], opp = d ^ 1;
+      // předmět stojí u stěny, se kterou je tenhle směr rovnoběžný: polohu už dává řetězec na té stěně
+      if (perp.some(p => touch(o, p) && (q.wall || touch(allSolid[q.idx], p)))) return;
+      if (!bed) {
+        if (touch(o, opp)) { if (q.d > 1.6) return; }
+        else if (!touch(o, d)) { const r2 = g[opp]; if (r2 && r2.d >= 0.03 && r2.d < q.d) return; }
+      }
+      const B = boxOf.get(o), s0 = hor ? (d === 0 ? B[2] : B[0]) : (d === 2 ? B[3] : B[1]), s1 = s0 + (d === 0 || d === 2 ? 1 : -1) * q.d;
+      const lo = Math.min(s0, s1), hi = Math.max(s0, s1);
+      if (dims.some(z => z.hor === hor && Math.abs(z.lo - lo) < 0.03 && Math.abs(z.hi - hi) < 0.03 && Math.abs(z.pos - q.pos) < 1.6)) return;
+      dims.push({ hor, lo, hi, pos: q.pos, d: q.d });
+    });
+  });
+  dims.forEach(z => {
+    const lab = String(kcm(z.d)), fs = 2.2;
+    if (z.hor) { const x1 = X(z.lo), x2 = X(z.hi), y = Y(z.pos); gDim += ln(x1, y, x2, y, 0.15) + slash(x1, y) + slash(x2, y) + txt((x1 + x2) / 2, y - 0.7, lab, fs, { halo: 1 }); }
+    else { const y1 = Y(z.lo), y2 = Y(z.hi), x = X(z.pos); gDim += ln(x, y1, x, y2, 0.15) + slash(x, y1) + slash(x, y2) + txt(x - 0.7, (y1 + y2) / 2, lab, fs, { rot: -90, halo: 1 }); }
+  });
+  // ---- grafické měřítko
+  const bx = 1, by = SH - 1.5; gDim += ln(bx, by, bx + k, by, 0.3) + ln(bx, by - 1, bx, by + 0.3, 0.3) + ln(bx + k, by - 1, bx + k, by + 0.3, 0.3) + ln(bx + k / 2, by - 0.6, bx + k / 2, by + 0.3, 0.2) + txt(bx + k + 1.2, by + 0.3, '1 m', 2.1, { anchor: 'start' });
+  // ---- výpis
+  const cnt = arr => { const m = new Map(); arr.forEach(t => m.set(t, (m.get(t) || 0) + 1)); return [...m].map(([t, n]) => (n > 1 ? n + '× ' : '') + t).join(', '); };
+  const sk = items.filter(o => o.kind === 'skrin'), skName = o => `${/vysok/i.test(o.label) ? 'vysoká ' : /n[ií]zk/i.test(o.label) ? 'nízká ' : o.label ? o.label + ' ' : ''}${kcm(o.w)}×${kcm(o.l)}`;
+  const rows = [];
+  if (beds.length) rows.push(['Lůžka', `${beds.length}× ${kcm(beds[0].l)}×${kcm(beds[0].w)}`]);
+  if (sk.length) rows.push(['Skříně (š×h)', cnt(sk.map(skName).sort())]);
+  if (tvInfo.length) rows.push(['Televize', tvInfo.map(v => v.name + (v.d == null ? '' : v.ang > 8 ? `, na rameni, střed ${kcm(v.d)} cm od stěny, natočení ${v.ang}°` : v.d > 0.12 ? `, rovnoběžně se stěnou, ${kcm(v.d)} cm od ní` : ', na stěně')).join('; ')]);
+  const cs = curts.filter(b => !isRod(b)), rods = curts.filter(isRod);
+  if (curts.length) rows.push(['Závěsy', (cs.length ? 'závěs ' + cs.map(b => kcm(b.w)).join(' + ') + ' cm' : '') + (rods.length ? (cs.length ? ', ' : '') + 'tyč bez závěsu ' + rods.map(b => kcm(b.w)).join(' + ') + ' cm' : '') + `, tyče celkem ${kcm(curts.reduce((a, b) => a + b.w, 0))} cm, výška cca 220 cm`]);
+  const oth = items.filter(isFurn); if (oth.length) rows.push(['Ostatní', cnt(oth.map(o => `${o.label || (o.kind === 'stul' ? 'stůl' : 'židle')} ${kcm(o.w)}×${kcm(o.l)}`).sort())]);
+  let area = 0; P.forEach((p, i) => { const c = P[(i + 1) % P.length]; area += p[0] * c[1] - c[0] * p[1]; }); area = Math.abs(area) / 2;
+  const meta = roomMeta(sc, id), v = VIEW[viewOfRoom(id)];
+  return `<section class="ksheet ${lay.o}">
+    <div class="khead"><div class="kt"><b>${esc(meta.name || 'Místnost')}</b><span>m. č. ${id} · ${esc(v.label)} · ${fmt(area, 1)} m²</span></div><div class="km">Oáza klidu o.p.s. · ${esc(sc.name)}<br>M 1:${s} · kóty v cm · ${new Date().toLocaleDateString('cs-CZ')}</div></div>
+    <svg class="kdraw" width="${SW}mm" height="${SH}mm" viewBox="0 0 ${SW} ${SH}" xmlns="http://www.w3.org/2000/svg">${gObj}${gRoom}${gSoft}${gDim}${gLbl}</svg>
+    <table class="klist">${rows.map(r => `<tr><th>${r[0]}</th><td>${esc(r[1])}</td></tr>`).join('')}</table>
+    <div class="kfoot">Řetězce podél stěn kótují předměty u stěny, konce závěsových tyčí (plná tečka) a střed televize na rameni (TV), vnější kóta je délka stěny. Kóty uvnitř jsou odstupy a průchody. U skříní je silnou čarou vyznačené čelo. Podklad je digitalizovaný půdorys, rozměry stavby před montáží ověřit na místě.</div>
+  </section>`;
+}
+function renderKoty() {
+  const sc = scen(), ids = kRooms(sc, ui.kscope), one = ui.kscope && ui.kscope.room;
+  const links = VIEWS.filter(v => kRooms(sc, { view: v.k }).length).map(v => `<a href="#koty-${v.k.toLowerCase()}"${ui.kscope && ui.kscope.view === v.k ? ' class="on"' : ''}>${v.label}</a>`).join('');
+  document.getElementById('app').innerHTML = `<div class="kpage"><div class="kbar"><button id="kBack">← Zpět do plánovače</button><button id="kPrint" class="primary">Tisk / uložit PDF</button><span class="kscope"><a href="#koty"${!ui.kscope ? ' class="on"' : ''}>Všechny pokoje</a>${links}</span><span class="khint">Varianta: ${esc(sc.name)}. Při tisku nech měřítko 100 % a okraje „žádné“, jinak nesedí měřítko výkresu.</span></div>${ids.length ? ids.map(id => kSheet(sc, id)).join('') : '<p class="kempty">V téhle části nejsou žádné pokoje s lůžky.</p>'}</div>`;
+  const b = document.getElementById('kBack'); if (b) b.addEventListener('click', () => { if (one && ROOMS[one]) openRoom(one); else openOverview(ui.view); });
+  const p = document.getElementById('kPrint'); if (p) p.addEventListener('click', () => window.print());
+}
+function openKoty(scope) { ui.page = 'koty'; ui.kscope = scope || null; ui.sel = null; ui.measure = null; setHash('koty' + (scope && scope.room ? '-' + scope.room.replace('.', '-') : scope && scope.view ? '-' + scope.view.toLowerCase() : '')); render(); window.scrollTo(0, 0); }
+/* KOTY-END */
 if (!scenById(S.active)) S.active = S.scenarios[0].id;
 if (S.compare && !scenById(S.compare)) S.compare = '';
 routeFromHash();
